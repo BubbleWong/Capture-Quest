@@ -1,0 +1,26 @@
+{
+  "name": "capture-quest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A PWA camera scavenger hunt game for homes and schools.",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "check": "node --check server/index.js && node --check server/gameEngine.js && node --check server/llm.js && node --check server/database.js && node --check server/runtimeConfig.js && node --check public/scripts/app.js && node --check public/service-worker.js && node --check scripts/smoke.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.12.0",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.7.5"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
+  }
+}

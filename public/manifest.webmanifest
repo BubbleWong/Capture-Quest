@@ -1,0 +1,17 @@
+{
+  "name": "Capture Quest",
+  "short_name": "Capture Quest",
+  "description": "A camera scavenger hunt game for homes and schools.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fffaf0",
+  "theme_color": "#39c7d4",
+  "icons": [
+    {
+      "src": "/assets/quest-camera.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

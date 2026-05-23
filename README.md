@@ -1,1 +1,30 @@
-# Capture-Quest
+# Capture Quest
+
+Capture Quest is a realtime camera scavenger hunt PWA. One player creates a game, shares the QR code or game ID, and up to 20 players race to photograph kid-safe objects around a home or school.
+
+## Run
+
+1. Copy `config.sample.js` to `config.js`.
+2. Fill in Postgres and OpenRouter settings.
+3. Install dependencies and start the server:
+
+```bash
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`.
+
+## Configuration
+
+`config.js` is ignored by git. Environment variables can also override the local config:
+
+- `POSTGRES_NODES`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+- `POSTGRES_DATABASE`
+- `OPENROUTER_API_KEY`
+- `OPENROUTER_MODEL`
+- `PUBLIC_BASE_URL`
+
+If Postgres is unavailable, completed scores are kept in memory for the current server run. If `OPENROUTER_API_KEY` is missing and `mockWhenMissingKey` is enabled, local development accepts submitted photos so the gameplay loop can be tested.
