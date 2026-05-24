@@ -64,6 +64,21 @@ const fallbackObjects = [
   "doorstop"
 ];
 
+const fallbackAdjectives = [
+  "blue",
+  "red",
+  "green",
+  "yellow",
+  "small",
+  "large",
+  "soft",
+  "fuzzy",
+  "striped",
+  "round",
+  "long",
+  "short"
+];
+
 async function readPrompt(name) {
   return fs.readFile(path.join(projectRoot, "prompts", name), "utf8");
 }
@@ -97,13 +112,24 @@ function uniqueCleanItems(items, previousItems = []) {
     });
 }
 
-function shuffledFallback(count, previousItems = []) {
-  const items = uniqueCleanItems(fallbackObjects, previousItems);
+function fallbackCandidates() {
+  return [
+    ...fallbackObjects,
+    ...fallbackAdjectives.flatMap((adjective) => fallbackObjects.map((item) => `${adjective} ${item}`))
+  ];
+}
+
+function shuffledFallback(count, previousItems = [], queuedItems = []) {
+  const items = uniqueCleanItems(fallbackCandidates(), [...previousItems, ...queuedItems]);
   for (let i = items.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
     [items[i], items[j]] = [items[j], items[i]];
   }
   return items.slice(0, count);
+}
+
+function itemList(items) {
+  return items.length ? items.join(", ") : "none";
 }
 
 export function createLlm(config, logger = console) {
@@ -137,8 +163,9 @@ export function createLlm(config, logger = console) {
   }
 
   return {
-    async generateItems({ count = 20, previousItems = [] } = {}) {
-      if (!hasKey) return shuffledFallback(count, previousItems);
+    async generateItems({ count = 20, previousItems = [], queuedItems = [] } = {}) {
+      const excludedItems = uniqueCleanItems([...previousItems, ...queuedItems]);
+      if (!hasKey) return shuffledFallback(count, previousItems, queuedItems);
 
       try {
         const [systemPrompt, selectPrompt] = await Promise.all([
@@ -150,19 +177,27 @@ export function createLlm(config, logger = console) {
             { role: "system", content: systemPrompt },
             {
               role: "user",
-              content: `${selectPrompt}\n\nReturn exactly ${count} items. Avoid these previous items: ${previousItems.join(", ") || "none"}.`
+              content: [
+                selectPrompt,
+                `Return exactly ${count} items.`,
+                `Already presented challenges for this group: ${itemList(previousItems)}.`,
+                `Already queued challenges for this group: ${itemList(queuedItems)}.`,
+                "Do not return exact repeats of already presented or queued challenge phrases.",
+                "You may use adjective-qualified variants when they create a meaningfully different visible target, such as blue shoes, fuzzy coat, or long pants.",
+                "Keep each item short, concrete, and recognizable in a phone photo."
+              ].join("\n\n")
             }
           ],
           { temperature: 0.9 }
         );
         const parsed = tryParseJson(content);
-        const items = uniqueCleanItems(parsed?.items, previousItems);
+        const items = uniqueCleanItems(parsed?.items, excludedItems);
         return items.length >= Math.min(5, count)
           ? items.slice(0, count)
-          : shuffledFallback(count, previousItems);
+          : shuffledFallback(count, previousItems, queuedItems);
       } catch (error) {
         logger.warn(`Item generation failed (${error.message}). Using curated fallback items.`);
-        return shuffledFallback(count, previousItems);
+        return shuffledFallback(count, previousItems, queuedItems);
       }
     },
 

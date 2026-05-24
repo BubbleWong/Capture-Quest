@@ -17,6 +17,8 @@ const state = {
   qrCode: "",
   playerId: "",
   notice: "",
+  notifications: [],
+  notificationId: 0,
   timerInterval: null,
   prefillGameId: initialGameId
 };
@@ -83,6 +85,41 @@ function escapeHtml(value) {
 function setNotice(message) {
   state.notice = message || "";
   render();
+}
+
+function notificationType(status) {
+  if (status === "found") return "success";
+  if (status === "miss") return "danger";
+  if (status === "expired") return "warning";
+  if (status === "target") return "target";
+  return "info";
+}
+
+function pushNotification(message, status = "info") {
+  if (!message) return;
+  const id = (state.notificationId += 1);
+  state.notifications = [
+    ...state.notifications.slice(-3),
+    {
+      id,
+      message,
+      type: notificationType(status)
+    }
+  ];
+  render();
+  setTimeout(() => {
+    state.notifications = state.notifications.filter((notification) => notification.id !== id);
+    if (state.view === "game") render();
+  }, 3000);
+}
+
+function showMessage(message, status = "info") {
+  if (state.view === "game") {
+    state.notice = "";
+    pushNotification(message, status);
+  } else {
+    setNotice(message);
+  }
 }
 
 function updateConnection(online) {
@@ -199,6 +236,7 @@ function resetLocalGame(message = "") {
   state.gameUrl = "";
   state.qrCode = "";
   state.playerId = "";
+  state.notifications = [];
   state.notice = message;
   render();
 }
@@ -464,7 +502,7 @@ function formatSeconds(ms) {
   return `${Math.max(0, Math.ceil(ms / 1000))}s`;
 }
 
-function timerMarkup(round) {
+function timerMarkup(round, { showChip = true } = {}) {
   if (!round) return "";
   const total = Math.max(1, round.expiresAt - round.startedAt);
   const left = Math.max(0, round.expiresAt - Date.now());
@@ -474,7 +512,7 @@ function timerMarkup(round) {
       <div class="timer-bar" aria-label="Round timer">
         <div class="timer-fill" style="width:${width}%"></div>
       </div>
-      <span class="status-chip">${formatSeconds(left)}</span>
+      ${showChip ? `<span class="status-chip">${formatSeconds(left)}</span>` : ""}
     </div>
   `;
 }
@@ -516,6 +554,32 @@ function groupScoreRows(players) {
           <span class="score-name">${escapeHtml(player.username)}</span>
           <span class="score-value">${player.score}</span>
         </li>
+      `
+    )
+    .join("");
+}
+
+function gameScorePills(players) {
+  return [...players]
+    .sort((a, b) => b.score - a.score || Number(b.isOwner) - Number(a.isOwner) || a.username.localeCompare(b.username))
+    .map(
+      (player) => `
+        <li class="game-score-pill ${player.id === state.playerId ? "is-me" : ""}">
+          <span class="game-score-name">${escapeHtml(player.username)}</span>
+          <span class="game-score-value">${player.score}</span>
+        </li>
+      `
+    )
+    .join("");
+}
+
+function renderGameNotifications() {
+  return state.notifications
+    .map(
+      (notification) => `
+        <div class="game-toast is-${notification.type}" data-id="${notification.id}">
+          ${escapeHtml(notification.message)}
+        </div>
       `
     )
     .join("");
@@ -693,36 +757,48 @@ function renderLobby() {
 function renderGame() {
   const game = state.game;
   const round = game.currentRound;
-  const cameraMessage = cameraState.error || (cameraState.stream ? "Camera ready" : "Starting camera...");
+  const cameraMessage = cameraState.error || (cameraState.stream ? "Camera ready" : "Starting camera");
   const cameraDisabled = !cameraState.stream || Boolean(cameraState.error) || cameraState.sending;
+  const isOwner = game.me?.id === game.ownerPlayerId;
   app.innerHTML = `
-    <section class="screen game-layout">
-      <div class="stack">
-        ${renderNotice()}
-        <div class="target-panel">
-          <span class="target-kicker">Round ${game.roundsAwarded + 1} of ${game.normalRounds}${game.roundsAwarded >= game.normalRounds ? " · tie breaker" : ""}</span>
-          <h1 class="target-word">${escapeHtml(round?.item || "Get ready")}</h1>
-          ${timerMarkup(round)}
+    <section class="screen game-screen">
+      <video id="cameraVideo" class="game-camera-video" autoplay playsinline muted></video>
+      <div class="game-camera-shade"></div>
+      <div class="game-overlay">
+        <header class="game-hud">
+          <div class="game-hud-top">
+            <span class="game-round-label">Round ${game.roundsAwarded + 1} of ${game.normalRounds}${game.roundsAwarded >= game.normalRounds ? " · tie breaker" : ""}</span>
+            <span class="round-time">${formatSeconds(Math.max(0, (round?.expiresAt || Date.now()) - Date.now()))}</span>
+          </div>
+          <h1 class="game-target-word">${escapeHtml(round?.item || "Get ready")}</h1>
+          ${timerMarkup(round, { showChip: false })}
+          <div class="game-info-strip">
+            <span>${escapeHtml(cameraMessage)}</span>
+            <span>${game.players.length}/${game.maxPlayers} players</span>
+            <span>${game.itemQueueCount} backups</span>
+          </div>
+        </header>
+
+        <div class="game-toast-stack" aria-live="polite">
+          ${renderGameNotifications()}
         </div>
-        <div class="compact-panel capture-box">
-          <div class="camera-feed">
-            <video id="cameraVideo" class="camera-video" autoplay playsinline muted></video>
-            <button class="primary-button camera-shutter" id="submitPhotoButton" type="button" ${cameraDisabled ? "disabled" : ""}>
+
+        <footer class="game-bottom-bar">
+          <ul class="game-score-strip" aria-label="Scores">
+            ${gameScorePills(game.players)}
+          </ul>
+          <div class="game-action-row">
+            <button class="primary-button game-shutter-button" id="submitPhotoButton" type="button" ${cameraDisabled ? "disabled" : ""}>
               ${cameraState.sending ? "Checking..." : "Snap and verify"}
             </button>
+            ${
+              isOwner
+                ? `<button class="danger-button game-small-action" id="endGameButton" type="button">End game</button>`
+                : `<button class="secondary-button game-small-action" id="leaveGameButton" type="button">Leave game</button>`
+            }
           </div>
-          <p class="camera-message">${escapeHtml(cameraMessage)}</p>
-        </div>
+        </footer>
       </div>
-      <aside class="compact-panel stack">
-        <h2>Scores</h2>
-        <ul class="score-list">${playerRows(game.players)}</ul>
-        ${
-          game.me?.id === game.ownerPlayerId
-            ? `<button class="danger-button" id="endGameButton" type="button">End game</button>`
-            : `<button class="secondary-button" id="leaveGameButton" type="button">Leave game</button>`
-        }
-      </aside>
     </section>
   `;
 
@@ -762,6 +838,7 @@ function render() {
   state.timerInterval = null;
 
   state.view = activeViewFromGame(state.game) || state.view;
+  document.body.classList.toggle("is-game-active", state.view === "game");
   if (state.view === "home") renderHome();
   if (state.view === "create") renderCreate();
   if (state.view === "join") renderJoin();
@@ -772,7 +849,7 @@ function render() {
   if (state.game?.currentRound?.status === "active") {
     state.timerInterval = setInterval(() => {
       const fill = document.querySelector(".timer-fill");
-      const chip = document.querySelector(".target-panel .status-chip");
+      const chip = document.querySelector(".round-time");
       const round = state.game.currentRound;
       if (!fill || !chip || !round) return;
       const total = Math.max(1, round.expiresAt - round.startedAt);
@@ -790,8 +867,8 @@ async function submitPhoto() {
   if (!imageDataUrl || cameraState.sending) return;
 
   cameraState.sending = true;
-  state.notice = "Photo sent. Checking...";
-  render();
+  state.notice = "";
+  pushNotification("Photo sent. Checking...", "info");
 
   const response = await emitAck("submit_capture", {
     gameId: state.game.id,
@@ -799,7 +876,7 @@ async function submitPhoto() {
   });
   if (!response.ok) {
     cameraState.sending = false;
-    setNotice(response.error);
+    showMessage(response.error, "danger");
     return;
   }
   render();
@@ -835,21 +912,35 @@ socket.on("game_state", (game) => {
 
 socket.on("round_started", ({ item }) => {
   cameraState.sending = false;
-  state.notice = `Find ${item}.`;
-  render();
+  state.notice = "";
+  pushNotification(`Find ${item}.`, "target");
 });
 
 socket.on("round_result", (result) => {
   cameraState.sending = false;
-  state.notice = result.message;
-  render();
+  state.notice = "";
+  pushNotification(result.message, result.status);
 });
 
 socket.on("submission_result", (result) => {
   if (result.status !== "checking") {
     cameraState.sending = false;
   }
-  setNotice(result.message);
+  if (result.status === "checking") {
+    pushNotification(result.message, "info");
+  } else if (result.status !== "miss") {
+    showMessage(result.message, result.status);
+  } else {
+    render();
+  }
+});
+
+socket.on("capture_notice", (result) => {
+  if (result.playerId === state.playerId) {
+    cameraState.sending = false;
+  }
+  state.notice = "";
+  pushNotification(result.message, result.status);
 });
 
 socket.on("game_ended", ({ winner, message }) => {
@@ -859,7 +950,7 @@ socket.on("game_ended", ({ winner, message }) => {
 });
 
 socket.on("notice", ({ message }) => {
-  setNotice(message);
+  showMessage(message);
 });
 
 socket.on("left_game", ({ message }) => {

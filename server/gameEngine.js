@@ -55,6 +55,26 @@ function usernamesMatch(first, second) {
   return first.localeCompare(second, undefined, { sensitivity: "accent" }) === 0;
 }
 
+function cleanChallengeItem(item) {
+  return String(item || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9 -]/g, "")
+    .replace(/\s+/g, " ")
+    .slice(0, 48);
+}
+
+function normalizeChallengeWord(word) {
+  if (word.length > 4 && word.endsWith("ies")) return `${word.slice(0, -3)}y`;
+  if (word.length > 4 && /(ches|shes|sses|xes|zes)$/.test(word)) return word.slice(0, -2);
+  if (word.length > 3 && word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1);
+  return word;
+}
+
+function challengeKey(item) {
+  return cleanChallengeItem(item).split(" ").map(normalizeChallengeWord).join(" ");
+}
+
 function publicPlayer(player) {
   return {
     id: player.id,
@@ -205,7 +225,6 @@ export class GameEngine {
     game.endedAt = null;
     game.startedAt = null;
     game.itemQueue = [];
-    game.usedItems = [];
     this.emitState(game);
     return { game, player };
   }
@@ -377,26 +396,82 @@ export class GameEngine {
   }
 
   async ensureItemBuffer(game, minimumCount) {
-    if (game.itemQueue.length >= minimumCount) return;
-    if (game.loadingItems) {
-      await game.loadingItems;
-      return;
-    }
+    for (;;) {
+      this.removeQueuedRepeats(game);
+      if (game.itemQueue.length >= minimumCount) return;
 
-    game.loadingItems = this.llm
-      .generateItems({
-        count: this.config.game.itemBatchSize,
-        previousItems: game.usedItems
-      })
-      .then((items) => {
-        const existing = new Set([...game.itemQueue, ...game.usedItems].map((item) => item.toLowerCase()));
-        const nextItems = items.filter((item) => !existing.has(item.toLowerCase()));
-        game.itemQueue.push(...nextItems);
-      })
-      .finally(() => {
+      if (game.loadingItems) {
+        await game.loadingItems;
+        continue;
+      }
+
+      const previousQueueCount = game.itemQueue.length;
+      game.loadingItems = this.fillItemBuffer(game, minimumCount).finally(() => {
         game.loadingItems = null;
       });
-    await game.loadingItems;
+      await game.loadingItems;
+      this.removeQueuedRepeats(game);
+      if (game.itemQueue.length <= previousQueueCount) return;
+    }
+  }
+
+  async fillItemBuffer(game, minimumCount) {
+    for (let attempt = 0; game.itemQueue.length < minimumCount && attempt < 4; attempt += 1) {
+      const items = await this.llm.generateItems({
+        count: this.config.game.itemBatchSize,
+        previousItems: [...game.usedItems],
+        queuedItems: [...game.itemQueue]
+      });
+      const nextItems = this.filterNewChallengeItems(game, items);
+      game.itemQueue.push(...nextItems);
+    }
+  }
+
+  presentedChallengeKeys(game) {
+    return new Set(game.usedItems.map(challengeKey));
+  }
+
+  queuedChallengeKeys(game) {
+    return new Set(game.itemQueue.map(challengeKey));
+  }
+
+  removeQueuedRepeats(game) {
+    const presented = this.presentedChallengeKeys(game);
+    const seen = new Set();
+    game.itemQueue = game.itemQueue.filter((item) => {
+      const key = challengeKey(item);
+      if (!key || presented.has(key) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  filterNewChallengeItems(game, items) {
+    const seen = new Set([...this.presentedChallengeKeys(game), ...this.queuedChallengeKeys(game)]);
+    return (items || [])
+      .map(cleanChallengeItem)
+      .filter((item) => item.length > 1)
+      .filter((item) => {
+        const key = challengeKey(item);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }
+
+  takeNextChallengeItem(game) {
+    this.removeQueuedRepeats(game);
+    while (game.itemQueue.length > 0) {
+      const item = game.itemQueue.shift();
+      if (!this.presentedChallengeKeys(game).has(challengeKey(item))) return item;
+    }
+    return "";
+  }
+
+  rememberPresentedChallenge(game, item) {
+    const key = challengeKey(item);
+    if (!key || this.presentedChallengeKeys(game).has(key)) return;
+    game.usedItems.push(cleanChallengeItem(item));
   }
 
   async startRound(game) {
@@ -406,19 +481,26 @@ export class GameEngine {
       return;
     }
 
+    this.removeQueuedRepeats(game);
     if (game.itemQueue.length < 1) {
       game.status = "loading";
       this.emitState(game);
       await this.ensureItemBuffer(game, 1);
     }
 
-    const item = game.itemQueue.shift();
+    let item = this.takeNextChallengeItem(game);
+    if (!item) {
+      game.status = "loading";
+      this.emitState(game);
+      await this.ensureItemBuffer(game, 1);
+      item = this.takeNextChallengeItem(game);
+    }
     if (!item) {
       await this.endGame(game);
       return;
     }
 
-    game.usedItems.push(item);
+    this.rememberPresentedChallenge(game, item);
     game.status = "running";
     game.roundNumber += 1;
     game.currentRound = {
@@ -481,12 +563,23 @@ export class GameEngine {
   }
 
   penalizeMiss(game, player, result) {
+    const round = game.currentRound;
+    const message = `${player.username} did not match ${round?.item || "the target"}. ${result.reason || "Not a match yet."} -1 point.`;
     player.score -= 1;
     this.io.to(player.socketId).emit("submission_result", {
       status: "miss",
       penalty: -1,
       score: player.score,
-      message: `${result.reason || "Not a match yet."} -1 point.`
+      message
+    });
+    this.io.to(game.id).emit("capture_notice", {
+      status: "miss",
+      playerId: player.id,
+      username: player.username,
+      item: round?.item || "",
+      penalty: -1,
+      score: player.score,
+      message
     });
     this.emitState(game);
   }
