@@ -19,26 +19,6 @@ function createMemoryDatabase() {
         ...result,
         endedAt: new Date().toISOString()
       });
-    },
-    async getLeaderboard(limit = 25) {
-      const rows = new Map();
-      for (const game of completedGames) {
-        for (const player of game.players) {
-          const current = rows.get(player.username) || {
-            player_name: player.username,
-            total_score: 0,
-            games_played: 0,
-            wins: 0
-          };
-          current.total_score += player.score;
-          current.games_played += 1;
-          if (game.winner?.id === player.id) current.wins += 1;
-          rows.set(player.username, current);
-        }
-      }
-      return [...rows.values()]
-        .sort((a, b) => b.total_score - a.total_score || b.wins - a.wins || a.player_name.localeCompare(b.player_name))
-        .slice(0, limit);
     }
   };
 }
@@ -139,24 +119,6 @@ export async function createDatabase(config, logger = console) {
       } finally {
         client.release();
       }
-    },
-    async getLeaderboard(limit = 25) {
-      const { rows } = await pool.query(
-        `
-          SELECT
-            gs.player_name,
-            SUM(gs.score)::INTEGER AS total_score,
-            COUNT(*)::INTEGER AS games_played,
-            SUM(CASE WHEN gs.player_id = g.winner_id THEN 1 ELSE 0 END)::INTEGER AS wins
-          FROM game_scores gs
-          JOIN games g ON g.id = gs.game_id
-          GROUP BY gs.player_name
-          ORDER BY total_score DESC, wins DESC, player_name ASC
-          LIMIT $1;
-        `,
-        [limit]
-      );
-      return rows;
     },
     async close() {
       await pool.end();

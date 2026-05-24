@@ -51,6 +51,10 @@ function cleanUsername(username, fallback = "Player") {
   return cleaned || fallback;
 }
 
+function usernamesMatch(first, second) {
+  return first.localeCompare(second, undefined, { sensitivity: "accent" }) === 0;
+}
+
 function publicPlayer(player) {
   return {
     id: player.id,
@@ -117,8 +121,14 @@ export class GameEngine {
     if (game.status !== "lobby") return { error: "This game has already started." };
     if (game.players.size >= this.config.game.maxPlayers) return { error: "This game is full." };
 
+    const username = cleanUsername(payload.username, "Player");
+    const nameExistsInGame = [...game.players.values()].some((player) => usernamesMatch(player.username, username));
+    if (nameExistsInGame) {
+      return { error: "That name is already used in this game. Try another name." };
+    }
+
     this.detachSocket(socket);
-    const player = this.createPlayer(socket, payload.username, false);
+    const player = this.createPlayer(socket, username, false);
     game.players.set(player.id, player);
     socket.join(gameId);
     this.socketSessions.set(socket.id, { gameId, playerId: player.id });

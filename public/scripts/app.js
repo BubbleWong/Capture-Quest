@@ -204,6 +204,21 @@ function renderNotice() {
   return state.notice ? `<div class="notice">${escapeHtml(state.notice)}</div>` : "";
 }
 
+function groupScoreRows(players) {
+  return [...players]
+    .sort((a, b) => b.score - a.score || a.username.localeCompare(b.username))
+    .map(
+      (player, index) => `
+        <li class="score-row">
+          <span class="score-rank">${index + 1}</span>
+          <span class="score-name">${escapeHtml(player.username)}</span>
+          <span class="score-value">${player.score}</span>
+        </li>
+      `
+    )
+    .join("");
+}
+
 function renderHome() {
   app.innerHTML = `
     <section class="screen screen-grid">
@@ -494,24 +509,15 @@ async function submitPhoto() {
 }
 
 async function openLeaderboard() {
-  leaderboardContent.innerHTML = `<p class="empty-state">Loading...</p>`;
   leaderboardDialog.showModal();
-  const response = await fetch("/api/leaderboard");
-  const data = await response.json();
-  const rows = data.rows || [];
-  leaderboardContent.innerHTML = rows.length
-    ? `<ol class="score-list">${rows
-        .map(
-          (row, index) => `
-            <li class="score-row">
-              <span class="score-rank">${index + 1}</span>
-              <span class="score-name">${escapeHtml(row.player_name)}</span>
-              <span class="score-value">${row.total_score}</span>
-            </li>
-          `
-        )
-        .join("")}</ol>`
-    : `<p class="empty-state">No completed games yet.</p>`;
+  if (!state.game) {
+    leaderboardContent.innerHTML = `<p class="empty-state">Join or create a game to see group scores.</p>`;
+    return;
+  }
+
+  leaderboardContent.innerHTML = state.game.players.length
+    ? `<ol class="score-list">${groupScoreRows(state.game.players)}</ol>`
+    : `<p class="empty-state">No players in this group yet.</p>`;
 }
 
 socket.on("connect", () => {

@@ -62,11 +62,8 @@ app.get("/api/health", (_request, response) => {
   });
 });
 
-app.get("/api/leaderboard", async (request, response) => {
-  const limit = Math.min(Number(request.query.limit || 25), 100);
-  response.json({
-    rows: await database.getLeaderboard(limit)
-  });
+app.use("/api", (_request, response) => {
+  response.status(404).json({ ok: false, error: "Not found." });
 });
 
 app.get("*", (_request, response) => {
