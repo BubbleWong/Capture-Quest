@@ -258,6 +258,62 @@ button:disabled {
   width: 100%;
 }
 
+.game-id-field {
+  gap: 8px;
+}
+
+.passcode-input {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto repeat(3, minmax(0, 1fr));
+  max-width: 430px;
+  width: 100%;
+}
+
+.passcode-cell {
+  aspect-ratio: 1;
+  background: #ffffff;
+  border: 2px solid #cbd5ef;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgba(75, 125, 255, 0.08);
+  color: var(--blue);
+  font-size: 1.55rem;
+  font-weight: 1000;
+  min-height: 58px;
+  padding: 0;
+  text-align: center;
+  text-transform: uppercase;
+  width: 100%;
+}
+
+.passcode-cell:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 4px rgba(75, 125, 255, 0.16), inset 0 0 0 1px rgba(75, 125, 255, 0.1);
+  outline: 0;
+}
+
+.passcode-separator {
+  color: var(--blue);
+  font-size: 1.5rem;
+  font-weight: 1000;
+  line-height: 1;
+  text-align: center;
+  width: 18px;
+}
+
+.field-hint {
+  color: var(--coral);
+  font-size: 0.78rem;
+  font-weight: 900;
+  min-height: 1em;
+  text-transform: none;
+}
+
+.field-hint:not(.is-visible) {
+  opacity: 0;
+}
+
 .primary-button,
 .secondary-button,
 .danger-button {
@@ -866,6 +922,20 @@ body.is-game-active .main-stage {
   .hero-art img {
     height: 168px;
     width: 168px;
+  }
+
+  .passcode-input {
+    gap: 6px;
+  }
+
+  .passcode-cell {
+    font-size: 1.35rem;
+    min-height: 48px;
+  }
+
+  .passcode-separator {
+    font-size: 1.25rem;
+    width: 14px;
   }
 
   .game-target-word {

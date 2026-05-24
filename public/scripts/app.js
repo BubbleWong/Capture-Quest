@@ -9,6 +9,9 @@ const socket = io();
 const query = new URLSearchParams(window.location.search);
 const initialGameId = query.get("game")?.toUpperCase() || "";
 const sessionKey = "captureQuestSession";
+const usernameKey = "captureQuestLastUsername";
+const gameCodeLength = 6;
+const crockfordCharacters = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 const state = {
   view: initialGameId ? "join" : "home",
@@ -61,6 +64,24 @@ function readSession() {
   }
 }
 
+function readLastUsername() {
+  try {
+    return localStorage.getItem(usernameKey) || "";
+  } catch {
+    return "";
+  }
+}
+
+function saveLastUsername(username) {
+  const cleaned = String(username || "").trim().replace(/\s+/g, " ").slice(0, 24);
+  if (!cleaned) return;
+  try {
+    localStorage.setItem(usernameKey, cleaned);
+  } catch {
+    // Local storage can be unavailable in private or restricted browsing modes.
+  }
+}
+
 function emitAck(event, payload) {
   return new Promise((resolve) => {
     socket.timeout(20000).emit(event, payload, (error, response) => {
@@ -80,6 +101,22 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function normalizeGameIdInput(value) {
+  let normalized = "";
+  for (const char of String(value || "").toUpperCase()) {
+    if (char === "-" || /\s/.test(char)) continue;
+    if (char === "O") {
+      normalized += "0";
+    } else if (char === "I" || char === "L") {
+      normalized += "1";
+    } else if (crockfordCharacters.includes(char)) {
+      normalized += char;
+    }
+    if (normalized.length >= gameCodeLength) break;
+  }
+  return normalized;
 }
 
 function setNotice(message) {
@@ -147,6 +184,7 @@ function setJoinData(response) {
 }
 
 async function createGame(formData) {
+  saveLastUsername(formData.get("ownerName"));
   ensureCamera({ rerender: false });
   const response = await emitAck("create_game", {
     username: formData.get("ownerName")
@@ -158,6 +196,7 @@ async function createGame(formData) {
 }
 
 async function joinGame(formData) {
+  saveLastUsername(formData.get("playerName"));
   ensureCamera({ rerender: false });
   const response = await emitAck("join_game", {
     username: formData.get("playerName"),
@@ -559,6 +598,113 @@ function groupScoreRows(players) {
     .join("");
 }
 
+function gameCodeCells(value) {
+  const code = normalizeGameIdInput(value);
+  return Array.from({ length: gameCodeLength }, (_, index) => {
+    const separator = index === 3 ? `<span class="passcode-separator" aria-hidden="true">-</span>` : "";
+    return `
+      ${separator}
+      <input
+        class="passcode-cell"
+        data-code-index="${index}"
+        inputmode="text"
+        autocomplete="off"
+        autocapitalize="characters"
+        autocorrect="off"
+        spellcheck="false"
+        maxlength="1"
+        aria-label="Game ID character ${index + 1}"
+        value="${escapeHtml(code[index] || "")}"
+      >
+    `;
+  }).join("");
+}
+
+function syncGameCodeInput() {
+  const inputs = [...document.querySelectorAll(".passcode-cell")];
+  const hidden = document.querySelector("#gameIdHidden");
+  if (!hidden) return "";
+  const code = inputs.map((input) => normalizeGameIdInput(input.value)).join("").slice(0, gameCodeLength);
+  hidden.value = code;
+  state.prefillGameId = code;
+  return code;
+}
+
+function setGameCodeError(message = "") {
+  const error = document.querySelector("#gameCodeError");
+  if (!error) return;
+  error.textContent = message;
+  error.classList.toggle("is-visible", Boolean(message));
+}
+
+function setupGameCodeInput() {
+  const inputs = [...document.querySelectorAll(".passcode-cell")];
+  if (!inputs.length) return;
+
+  function fillFrom(value, startIndex = 0) {
+    const characters = normalizeGameIdInput(value).split("");
+    if (!characters.length) {
+      syncGameCodeInput();
+      return;
+    }
+
+    characters.forEach((character, offset) => {
+      const input = inputs[startIndex + offset];
+      if (input) input.value = character;
+    });
+
+    const nextIndex = Math.min(startIndex + characters.length, gameCodeLength - 1);
+    syncGameCodeInput();
+    setGameCodeError("");
+    inputs[nextIndex]?.focus();
+    inputs[nextIndex]?.select();
+  }
+
+  inputs.forEach((input, index) => {
+    input.addEventListener("focus", () => input.select());
+    input.addEventListener("paste", (event) => {
+      event.preventDefault();
+      fillFrom(event.clipboardData?.getData("text") || "", index);
+    });
+    input.addEventListener("input", () => {
+      const value = normalizeGameIdInput(input.value);
+      if (value.length > 1) {
+        input.value = "";
+        fillFrom(value, index);
+        return;
+      }
+
+      input.value = value;
+      const code = syncGameCodeInput();
+      setGameCodeError("");
+      if (value && index < gameCodeLength - 1) {
+        inputs[index + 1].focus();
+        inputs[index + 1].select();
+      } else if (code.length === gameCodeLength) {
+        document.querySelector("[name='playerName']")?.focus();
+      }
+    });
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Backspace" && !input.value && index > 0) {
+        event.preventDefault();
+        inputs[index - 1].value = "";
+        inputs[index - 1].focus();
+        syncGameCodeInput();
+      }
+      if (event.key === "ArrowLeft" && index > 0) {
+        event.preventDefault();
+        inputs[index - 1].focus();
+      }
+      if (event.key === "ArrowRight" && index < gameCodeLength - 1) {
+        event.preventDefault();
+        inputs[index + 1].focus();
+      }
+    });
+  });
+
+  syncGameCodeInput();
+}
+
 function gameScorePills(players) {
   return [...players]
     .sort((a, b) => b.score - a.score || Number(b.isOwner) - Number(a.isOwner) || a.username.localeCompare(b.username))
@@ -624,6 +770,7 @@ function renderHome() {
 }
 
 function renderCreate() {
+  const username = escapeHtml(readLastUsername());
   app.innerHTML = `
     <section class="screen screen-grid">
       <div class="hero-side">
@@ -639,7 +786,7 @@ function renderCreate() {
           <h2>Create Game</h2>
           <label class="field">
             <span>Your name</span>
-            <input class="text-input" name="ownerName" autocomplete="nickname" maxlength="24" required placeholder="Game owner" autofocus>
+            <input class="text-input" name="ownerName" autocomplete="nickname" maxlength="24" required placeholder="Game owner" value="${username}" autofocus>
           </label>
           <button class="primary-button" type="submit">Create game</button>
           <button class="secondary-button" id="backToChoiceButton" type="button">Back</button>
@@ -660,7 +807,8 @@ function renderCreate() {
 }
 
 function renderJoin() {
-  const prefill = escapeHtml(state.prefillGameId);
+  const prefill = normalizeGameIdInput(state.prefillGameId);
+  const username = escapeHtml(readLastUsername());
   app.innerHTML = `
     <section class="screen screen-grid">
       <div class="hero-side">
@@ -674,13 +822,17 @@ function renderJoin() {
         ${renderNotice()}
         <form class="action-panel stack" id="joinForm">
           <h2>Join Game</h2>
-          <label class="field">
-            <span>Game ID</span>
-            <input class="text-input" name="gameId" inputmode="latin" autocomplete="off" maxlength="8" required value="${prefill}" placeholder="ABC123" autofocus>
-          </label>
+          <div class="field game-id-field">
+            <span id="gameCodeLabel">Game ID</span>
+            <input id="gameIdHidden" name="gameId" type="hidden" value="${escapeHtml(prefill)}">
+            <div class="passcode-input" role="group" aria-labelledby="gameCodeLabel">
+              ${gameCodeCells(prefill)}
+            </div>
+            <span class="field-hint" id="gameCodeError" aria-live="polite"></span>
+          </div>
           <label class="field">
             <span>Your name</span>
-            <input class="text-input" name="playerName" autocomplete="nickname" maxlength="24" required placeholder="Player">
+            <input class="text-input" name="playerName" autocomplete="nickname" maxlength="24" required placeholder="Player" value="${username}">
           </label>
           <button class="primary-button" type="submit">Join game</button>
           <button class="secondary-button" id="backToChoiceButton" type="button">Back</button>
@@ -689,8 +841,19 @@ function renderJoin() {
     </section>
   `;
 
+  setupGameCodeInput();
+  if (prefill.length === gameCodeLength) {
+    document.querySelector("[name='playerName']")?.focus();
+  } else {
+    document.querySelector(`.passcode-cell[data-code-index="${prefill.length}"]`)?.focus();
+  }
   document.querySelector("#joinForm").addEventListener("submit", (event) => {
     event.preventDefault();
+    if (syncGameCodeInput().length !== gameCodeLength) {
+      setGameCodeError("Enter the 6-character Game ID.");
+      document.querySelector(".passcode-cell")?.focus();
+      return;
+    }
     joinGame(new FormData(event.currentTarget));
   });
   document.querySelector("#backToChoiceButton").addEventListener("click", () => {
