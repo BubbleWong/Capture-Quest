@@ -511,7 +511,7 @@ async function submitPhoto() {
 async function openLeaderboard() {
   leaderboardDialog.showModal();
   if (!state.game) {
-    leaderboardContent.innerHTML = `<p class="empty-state">Join or create a game to see group scores.</p>`;
+    leaderboardContent.innerHTML = `<p class="empty-state">Join or create a game to see the leaderboard.</p>`;
     return;
   }
 
