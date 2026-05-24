@@ -56,7 +56,7 @@ socket.on("game_state", (state) => states.push(state));
 try {
   const created = await emitAck(socket, "create_game", { username: "Smoke Tester" });
   assert.equal(created.ok, true);
-  assert.match(created.gameId, /^[A-Z0-9]{6}$/);
+  assert.match(created.gameId, /^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{6}$/);
   assert.equal(Boolean(created.qrCode), true);
 
   await waitForState(states, (state) => state.status === "lobby");

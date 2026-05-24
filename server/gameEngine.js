@@ -1,13 +1,47 @@
 import crypto from "node:crypto";
 
-const idAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+export const crockfordBase32Alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+const gameCodeLength = 6;
+
+export function encodeCrockfordBase32(value, minLength = 1) {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error("Crockford Base32 values must be non-negative safe integers.");
+  }
+
+  let encoded = "";
+  let remaining = value;
+  do {
+    encoded = crockfordBase32Alphabet[remaining % 32] + encoded;
+    remaining = Math.floor(remaining / 32);
+  } while (remaining > 0);
+
+  return encoded.padStart(minLength, "0");
+}
+
+export function normalizeGameCode(value) {
+  const text = String(value || "").trim();
+  if (!text) return null;
+
+  let normalized = "";
+  for (const char of text.toUpperCase()) {
+    if (char === "-" || /\s/.test(char)) continue;
+    if (char === "O") {
+      normalized += "0";
+    } else if (char === "I" || char === "L") {
+      normalized += "1";
+    } else if (crockfordBase32Alphabet.includes(char)) {
+      normalized += char;
+    } else {
+      return null;
+    }
+  }
+
+  return normalized.length === gameCodeLength ? normalized : null;
+}
 
 function createGameId(existingIds) {
   for (;;) {
-    let id = "";
-    for (let i = 0; i < 6; i += 1) {
-      id += idAlphabet[crypto.randomInt(0, idAlphabet.length)];
-    }
+    const id = encodeCrockfordBase32(crypto.randomInt(0, 32 ** gameCodeLength), gameCodeLength);
     if (!existingIds.has(id)) return id;
   }
 }
@@ -76,7 +110,8 @@ export class GameEngine {
   }
 
   joinGame(socket, payload = {}) {
-    const gameId = String(payload.gameId || "").trim().toUpperCase();
+    const gameId = normalizeGameCode(payload.gameId);
+    if (!gameId) return { error: "Game code is not valid." };
     const game = this.games.get(gameId);
     if (!game) return { error: "Game not found." };
     if (game.status !== "lobby") return { error: "This game has already started." };
@@ -93,7 +128,8 @@ export class GameEngine {
   }
 
   rejoinGame(socket, payload = {}) {
-    const gameId = String(payload.gameId || "").trim().toUpperCase();
+    const gameId = normalizeGameCode(payload.gameId);
+    if (!gameId) return { error: "Session not found." };
     const game = this.games.get(gameId);
     const player = game?.players.get(payload.playerId);
     if (!game || !player) return { error: "Session not found." };
@@ -252,7 +288,8 @@ export class GameEngine {
 
   getSession(socket, gameId) {
     const session = this.socketSessions.get(socket.id);
-    if (!session || (gameId && session.gameId !== String(gameId).trim().toUpperCase())) return null;
+    const normalizedGameId = gameId ? normalizeGameCode(gameId) : null;
+    if (!session || (gameId && session.gameId !== normalizedGameId)) return null;
     const game = this.games.get(session.gameId);
     const player = game?.players.get(session.playerId);
     if (!game || !player) return null;

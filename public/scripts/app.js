@@ -11,7 +11,7 @@ const initialGameId = query.get("game")?.toUpperCase() || "";
 const sessionKey = "captureQuestSession";
 
 const state = {
-  view: "home",
+  view: initialGameId ? "join" : "home",
   game: null,
   gameUrl: "",
   qrCode: "",
@@ -74,7 +74,7 @@ function updateConnection(online) {
 }
 
 function activeViewFromGame(game) {
-  if (!game) return "home";
+  if (!game) return null;
   if (game.status === "ended") return "end";
   if (game.status === "lobby" || game.status === "loading") return "lobby";
   return "game";
@@ -205,7 +205,6 @@ function renderNotice() {
 }
 
 function renderHome() {
-  const prefill = escapeHtml(state.prefillGameId);
   app.innerHTML = `
     <section class="screen screen-grid">
       <div class="hero-side">
@@ -217,25 +216,52 @@ function renderHome() {
       </div>
       <div class="form-side">
         ${renderNotice()}
+        <div class="choice-grid">
+          <button class="action-panel choice-card" id="showCreateButton" type="button">
+            <span class="choice-icon">+</span>
+            <span class="choice-title">Create Game</span>
+          </button>
+          <button class="action-panel choice-card" id="showJoinButton" type="button">
+            <span class="choice-icon">#</span>
+            <span class="choice-title">Join Game</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  `;
+
+  document.querySelector("#showCreateButton").addEventListener("click", () => {
+    state.view = "create";
+    state.notice = "";
+    render();
+  });
+  document.querySelector("#showJoinButton").addEventListener("click", () => {
+    state.view = "join";
+    state.notice = "";
+    render();
+  });
+}
+
+function renderCreate() {
+  app.innerHTML = `
+    <section class="screen screen-grid">
+      <div class="hero-side">
+        <div class="hero-art">
+          <img src="/assets/quest-camera.svg" alt="">
+          <h1>Create Game</h1>
+          <p>Start a room and share the code when players are ready.</p>
+        </div>
+      </div>
+      <div class="form-side single-form-side">
+        ${renderNotice()}
         <form class="action-panel stack" id="createForm">
           <h2>Create Game</h2>
           <label class="field">
             <span>Your name</span>
-            <input class="text-input" name="ownerName" autocomplete="nickname" maxlength="24" required placeholder="Game owner">
+            <input class="text-input" name="ownerName" autocomplete="nickname" maxlength="24" required placeholder="Game owner" autofocus>
           </label>
           <button class="primary-button" type="submit">Create game</button>
-        </form>
-        <form class="action-panel stack" id="joinForm">
-          <h2>Join Game</h2>
-          <label class="field">
-            <span>Game ID</span>
-            <input class="text-input" name="gameId" inputmode="latin" autocomplete="off" maxlength="8" required value="${prefill}" placeholder="ABC123">
-          </label>
-          <label class="field">
-            <span>Your name</span>
-            <input class="text-input" name="playerName" autocomplete="nickname" maxlength="24" required placeholder="Player">
-          </label>
-          <button class="secondary-button" type="submit">Join game</button>
+          <button class="secondary-button" id="backToChoiceButton" type="button">Back</button>
         </form>
       </div>
     </section>
@@ -245,9 +271,51 @@ function renderHome() {
     event.preventDefault();
     createGame(new FormData(event.currentTarget));
   });
+  document.querySelector("#backToChoiceButton").addEventListener("click", () => {
+    state.view = "home";
+    state.notice = "";
+    render();
+  });
+}
+
+function renderJoin() {
+  const prefill = escapeHtml(state.prefillGameId);
+  app.innerHTML = `
+    <section class="screen screen-grid">
+      <div class="hero-side">
+        <div class="hero-art">
+          <img src="/assets/quest-camera.svg" alt="">
+          <h1>Join Game</h1>
+          <p>Use the game ID from the host to jump into the lobby.</p>
+        </div>
+      </div>
+      <div class="form-side single-form-side">
+        ${renderNotice()}
+        <form class="action-panel stack" id="joinForm">
+          <h2>Join Game</h2>
+          <label class="field">
+            <span>Game ID</span>
+            <input class="text-input" name="gameId" inputmode="latin" autocomplete="off" maxlength="8" required value="${prefill}" placeholder="ABC123" autofocus>
+          </label>
+          <label class="field">
+            <span>Your name</span>
+            <input class="text-input" name="playerName" autocomplete="nickname" maxlength="24" required placeholder="Player">
+          </label>
+          <button class="primary-button" type="submit">Join game</button>
+          <button class="secondary-button" id="backToChoiceButton" type="button">Back</button>
+        </form>
+      </div>
+    </section>
+  `;
+
   document.querySelector("#joinForm").addEventListener("submit", (event) => {
     event.preventDefault();
     joinGame(new FormData(event.currentTarget));
+  });
+  document.querySelector("#backToChoiceButton").addEventListener("click", () => {
+    state.view = "home";
+    state.notice = "";
+    render();
   });
 }
 
@@ -365,6 +433,8 @@ function render() {
 
   state.view = activeViewFromGame(state.game) || state.view;
   if (state.view === "home") renderHome();
+  if (state.view === "create") renderCreate();
+  if (state.view === "join") renderJoin();
   if (state.view === "lobby") renderLobby();
   if (state.view === "game") renderGame();
   if (state.view === "end") renderEnd();

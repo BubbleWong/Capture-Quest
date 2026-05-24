@@ -2,6 +2,8 @@
 
 Capture Quest is a realtime camera scavenger hunt PWA. One player creates a game, shares the QR code or game ID, and up to 20 players race to photograph kid-safe objects around a home or school.
 
+Game IDs use Crockford Base32. Player-entered codes accept lowercase letters, hyphens or spaces, `O` as `0`, and `I`/`L` as `1`.
+
 ## Run
 
 1. Copy `config.sample.js` to `config.js`.
@@ -28,3 +30,5 @@ Open `http://localhost:3000`.
 - `PUBLIC_BASE_URL`
 
 If Postgres is unavailable, completed scores are kept in memory for the current server run. If `OPENROUTER_API_KEY` is missing and `mockWhenMissingKey` is enabled, local development accepts submitted photos so the gameplay loop can be tested.
+
+The default OpenRouter model is `openai/gpt-5.4-mini`; override it with `openRouter.model` in `config.js` or `OPENROUTER_MODEL`.

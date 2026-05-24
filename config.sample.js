@@ -18,7 +18,7 @@ export default {
   },
   openRouter: {
     apiKey: "",
-    model: "openai/gpt-5.4",
+    model: "openai/gpt-5.4-mini",
     baseUrl: "https://openrouter.ai/api/v1",
     appTitle: "Capture Quest",
     referer: "http://localhost:3000",

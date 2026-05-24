@@ -169,12 +169,59 @@ button:disabled {
   padding: clamp(20px, 4vw, 34px);
 }
 
+.single-form-side {
+  align-content: center;
+}
+
 .action-panel {
   background: var(--panel);
   border: 2px solid var(--ink);
   border-radius: 8px;
   box-shadow: 0 8px 0 rgba(23, 32, 51, 0.1);
   padding: 18px;
+}
+
+.choice-grid {
+  align-content: center;
+  display: grid;
+  gap: 18px;
+  min-height: 100%;
+}
+
+.choice-card {
+  align-items: center;
+  color: var(--ink);
+  display: grid;
+  gap: 14px;
+  grid-template-columns: auto 1fr;
+  min-height: 128px;
+  text-align: left;
+  width: 100%;
+}
+
+.choice-card:hover {
+  transform: translateY(-2px);
+}
+
+.choice-icon {
+  align-items: center;
+  background: var(--yellow);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  display: inline-flex;
+  font-size: 2rem;
+  font-weight: 1000;
+  height: 58px;
+  justify-content: center;
+  line-height: 1;
+  width: 58px;
+}
+
+.choice-title {
+  display: block;
+  font-size: clamp(1.5rem, 5vw, 2.4rem);
+  font-weight: 1000;
+  line-height: 1;
 }
 
 .action-panel h2,
