@@ -30,6 +30,12 @@ const cameraState = {
   healthTimer: null,
   intentionalStop: false,
   stalledSince: 0,
+  mutedSince: 0,
+  streamStartedAt: 0,
+  lastRecoveryAt: 0,
+  lastRestartAt: 0,
+  frameCount: 0,
+  lastFrameCount: 0,
   lastVideoTime: 0,
   lastVideoCheckAt: 0
 };
@@ -220,6 +226,7 @@ function attachCameraStream() {
     video.srcObject = cameraState.stream;
   }
   bindCameraVideo(video);
+  watchCameraFrames(video);
   video.play().catch(() => {});
 }
 
@@ -229,8 +236,10 @@ function isCameraExpected() {
 
 function resetCameraHealth() {
   cameraState.stalledSince = 0;
+  cameraState.mutedSince = 0;
+  cameraState.lastFrameCount = cameraState.frameCount;
   cameraState.lastVideoTime = 0;
-  cameraState.lastVideoCheckAt = 0;
+  cameraState.lastVideoCheckAt = Date.now();
 }
 
 function releaseCameraStream() {
@@ -245,6 +254,7 @@ function releaseCameraStream() {
   }
   cameraState.stream = null;
   cameraState.startPromise = null;
+  cameraState.streamStartedAt = 0;
   resetCameraHealth();
 }
 
@@ -259,9 +269,19 @@ function stopCamera() {
 function restartCamera(message = "Camera stalled. Reconnecting...") {
   if (!isCameraExpected() || cameraState.startPromise) return;
   releaseCameraStream();
+  cameraState.lastRestartAt = Date.now();
   cameraState.failed = false;
   cameraState.error = message;
   ensureCamera({ rerender: state.view === "game" });
+}
+
+function softRecoverCamera(video) {
+  if (!cameraState.stream || Date.now() - cameraState.lastRecoveryAt < 10000) return;
+  cameraState.lastRecoveryAt = Date.now();
+  video.srcObject = null;
+  video.load();
+  video.srcObject = cameraState.stream;
+  video.play().catch(() => {});
 }
 
 function bindCameraVideo(video) {
@@ -270,11 +290,28 @@ function bindCameraVideo(video) {
   for (const eventName of ["pause", "stalled", "waiting", "emptied"]) {
     video.addEventListener(eventName, () => {
       if (isCameraExpected() && cameraState.stream) {
-        attachCameraStream();
+        softRecoverCamera(video);
       }
     });
   }
   video.addEventListener("playing", resetCameraHealth);
+}
+
+function watchCameraFrames(video) {
+  if (!video.requestVideoFrameCallback || video.dataset.cameraFrameWatch === "true") return;
+  video.dataset.cameraFrameWatch = "true";
+  const watchFrame = () => {
+    if (document.querySelector("#cameraVideo") !== video || video.srcObject !== cameraState.stream) {
+      video.dataset.cameraFrameWatch = "false";
+      return;
+    }
+    cameraState.frameCount += 1;
+    cameraState.lastVideoCheckAt = Date.now();
+    if (video.dataset.cameraFrameWatch === "true") {
+      video.requestVideoFrameCallback(watchFrame);
+    }
+  };
+  video.requestVideoFrameCallback(watchFrame);
 }
 
 function startCameraHealthMonitor() {
@@ -303,23 +340,38 @@ function checkCameraHealth() {
     restartCamera("Camera disconnected. Reconnecting...");
     return;
   }
+  if (track.muted) {
+    if (!cameraState.mutedSince) cameraState.mutedSince = Date.now();
+  } else {
+    cameraState.mutedSince = 0;
+  }
 
   const video = document.querySelector("#cameraVideo");
   if (!video) return;
   attachCameraStream();
 
   const now = Date.now();
-  const hasFrame = video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && !video.paused;
+  const hasFrame = video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0;
+  const frameCountChanged = cameraState.frameCount !== cameraState.lastFrameCount;
   const videoTimeChanged = video.currentTime !== cameraState.lastVideoTime;
-  if (hasFrame && videoTimeChanged) {
+  if (hasFrame && (frameCountChanged || videoTimeChanged || !video.requestVideoFrameCallback)) {
+    cameraState.lastFrameCount = cameraState.frameCount;
     cameraState.lastVideoTime = video.currentTime;
     cameraState.lastVideoCheckAt = now;
     cameraState.stalledSince = 0;
     return;
   }
 
+  if (now - cameraState.streamStartedAt < 15000) return;
   if (!cameraState.stalledSince) cameraState.stalledSince = now;
-  if (now - cameraState.stalledSince > 7000 && now - cameraState.lastVideoCheckAt > 7000) {
+  if (now - cameraState.stalledSince > 10000) {
+    softRecoverCamera(video);
+  }
+  if (
+    now - cameraState.stalledSince > 45000 &&
+    now - cameraState.lastRestartAt > 120000 &&
+    (!cameraState.mutedSince || now - cameraState.mutedSince > 30000)
+  ) {
     restartCamera();
   }
 }
@@ -342,13 +394,12 @@ function ensureCamera({ rerender = true } = {}) {
     .getUserMedia({
       audio: false,
       video: {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
+        facingMode: { ideal: "environment" }
       }
     })
     .then((stream) => {
       cameraState.stream = stream;
+      cameraState.streamStartedAt = Date.now();
       cameraState.failed = false;
       cameraState.error = "";
       for (const track of stream.getVideoTracks()) {
@@ -358,9 +409,11 @@ function ensureCamera({ rerender = true } = {}) {
           }
         });
         track.addEventListener("mute", () => {
-          if (!cameraState.intentionalStop && isCameraExpected()) {
-            restartCamera("Camera paused. Reconnecting...");
-          }
+          cameraState.mutedSince = Date.now();
+        });
+        track.addEventListener("unmute", () => {
+          cameraState.mutedSince = 0;
+          resetCameraHealth();
         });
       }
       attachCameraStream();
