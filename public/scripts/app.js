@@ -8,6 +8,7 @@ const closeLeaderboardButton = document.querySelector("#closeLeaderboardButton")
 const socket = io();
 const query = new URLSearchParams(window.location.search);
 const initialGameId = query.get("game")?.toUpperCase() || "";
+const assetVersion = window.__CAPTURE_QUEST_ASSET_VERSION__ || "dev";
 const sessionKey = "captureQuestSession";
 const usernameKey = "captureQuestLastUsername";
 const gameCodeLength = 6;
@@ -20,9 +21,11 @@ const state = {
   qrCode: "",
   playerId: "",
   notice: "",
+  online: socket.connected,
   notifications: [],
   notificationId: 0,
   timerInterval: null,
+  urlGameId: initialGameId,
   prefillGameId: initialGameId
 };
 
@@ -44,6 +47,167 @@ const cameraState = {
   lastVideoTime: 0,
   lastVideoCheckAt: 0
 };
+
+const soundState = {
+  context: null,
+  unlocked: false,
+  countdownTickKey: "",
+  lastEndSoundGameId: ""
+};
+
+function createAudioContext() {
+  if (soundState.context) return soundState.context;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return null;
+  soundState.context = new AudioContextClass();
+  return soundState.context;
+}
+
+async function unlockAudio() {
+  const context = createAudioContext();
+  if (!context) return false;
+  try {
+    if (context.state === "suspended") await context.resume();
+    soundState.unlocked = context.state === "running";
+    return soundState.unlocked;
+  } catch {
+    return false;
+  }
+}
+
+function canPlaySound() {
+  return Boolean(soundState.unlocked && soundState.context?.state === "running");
+}
+
+function playTone(frequency, duration = 0.08, options = {}) {
+  if (!canPlaySound() || document.hidden) return;
+  const context = soundState.context;
+  const start = context.currentTime + (options.delay || 0);
+  const end = start + duration;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = options.type || "sine";
+  oscillator.frequency.setValueAtTime(frequency, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(options.gain || 0.045, start + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, end);
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(start);
+  oscillator.stop(end + 0.03);
+}
+
+function playSequence(notes) {
+  for (const note of notes) {
+    playTone(note.frequency, note.duration, note);
+  }
+}
+
+function playButtonSound() {
+  unlockAudio().then((unlocked) => {
+    if (!unlocked) return;
+    playSequence([
+      { frequency: 620, duration: 0.035, type: "triangle", gain: 0.035 },
+      { frequency: 920, duration: 0.04, type: "sine", gain: 0.025, delay: 0.035 }
+    ]);
+  });
+}
+
+function playCountdownTick(countdown, left, isUrgent) {
+  if (!canPlaySound() || left <= 0) return;
+  const bucketSize = isUrgent && left <= 3000 ? 500 : 1000;
+  const bucket = Math.ceil(left / bucketSize);
+  const key = `${countdown.mode}:${countdown.targetAt}:${bucketSize}:${bucket}`;
+  if (soundState.countdownTickKey === key) return;
+  soundState.countdownTickKey = key;
+
+  if (countdown.mode === "break") {
+    playTone(760 + bucket * 18, 0.045, { type: "square", gain: 0.028 });
+    return;
+  }
+
+  const urgencyBoost = isUrgent ? Math.round((10000 - left) / 35) : 0;
+  playTone(520 + urgencyBoost, isUrgent ? 0.055 : 0.035, {
+    type: isUrgent ? "sawtooth" : "triangle",
+    gain: isUrgent ? 0.035 : 0.018
+  });
+}
+
+function playNotificationSound(status = "info") {
+  if (!canPlaySound()) {
+    unlockAudio().then((unlocked) => {
+      if (unlocked) playNotificationSound(status);
+    });
+    return;
+  }
+  if (status === "found" || status === "success") {
+    playSequence([
+      { frequency: 660, duration: 0.07, type: "triangle", gain: 0.035 },
+      { frequency: 880, duration: 0.08, type: "triangle", gain: 0.035, delay: 0.08 },
+      { frequency: 1175, duration: 0.12, type: "triangle", gain: 0.032, delay: 0.17 }
+    ]);
+    return;
+  }
+  if (status === "miss" || status === "danger") {
+    playSequence([
+      { frequency: 220, duration: 0.1, type: "sawtooth", gain: 0.035 },
+      { frequency: 165, duration: 0.12, type: "sawtooth", gain: 0.03, delay: 0.1 }
+    ]);
+    return;
+  }
+  if (status === "expired" || status === "warning") {
+    playSequence([
+      { frequency: 330, duration: 0.08, type: "square", gain: 0.026 },
+      { frequency: 330, duration: 0.08, type: "square", gain: 0.026, delay: 0.14 }
+    ]);
+    return;
+  }
+  if (status === "target") {
+    playSequence([
+      { frequency: 523, duration: 0.055, type: "triangle", gain: 0.026 },
+      { frequency: 784, duration: 0.09, type: "triangle", gain: 0.026, delay: 0.08 }
+    ]);
+    return;
+  }
+  playTone(700, 0.055, { type: "sine", gain: 0.022 });
+}
+
+function playGameEndedSound(gameId = "") {
+  if (soundState.lastEndSoundGameId === gameId) return;
+  if (!canPlaySound()) {
+    unlockAudio().then((unlocked) => {
+      if (unlocked) playGameEndedSound(gameId);
+    });
+    return;
+  }
+  soundState.lastEndSoundGameId = gameId;
+  playSequence([
+    { frequency: 523, duration: 0.11, type: "triangle", gain: 0.04 },
+    { frequency: 659, duration: 0.11, type: "triangle", gain: 0.04, delay: 0.12 },
+    { frequency: 784, duration: 0.12, type: "triangle", gain: 0.04, delay: 0.24 },
+    { frequency: 1047, duration: 0.22, type: "triangle", gain: 0.038, delay: 0.38 }
+  ]);
+}
+
+function preventZoomGesture(event) {
+  event.preventDefault();
+}
+
+function preventZoomShortcut(event) {
+  if (!(event.ctrlKey || event.metaKey)) return;
+  if (["+", "-", "=", "_", "0"].includes(event.key)) {
+    event.preventDefault();
+  }
+}
+
+function preventDoubleTapZoom(event) {
+  const now = Date.now();
+  if (now - preventDoubleTapZoom.lastTouchEnd < 300) {
+    event.preventDefault();
+  }
+  preventDoubleTapZoom.lastTouchEnd = now;
+}
+preventDoubleTapZoom.lastTouchEnd = 0;
 
 function saveSession() {
   if (!state.game?.id || !state.playerId) return;
@@ -103,6 +267,12 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function assetUrl(path) {
+  const url = new URL(path, window.location.origin);
+  url.searchParams.set("v", assetVersion);
+  return `${url.pathname}${url.search}`;
+}
+
 function normalizeGameIdInput(value) {
   let normalized = "";
   for (const char of String(value || "").toUpperCase()) {
@@ -117,6 +287,18 @@ function normalizeGameIdInput(value) {
     if (normalized.length >= gameCodeLength) break;
   }
   return normalized;
+}
+
+function updateGameQuery(gameId = "") {
+  const normalizedGameId = normalizeGameIdInput(gameId);
+  const url = new URL(window.location.href);
+  if (normalizedGameId) {
+    url.searchParams.set("game", normalizedGameId);
+  } else {
+    url.searchParams.delete("game");
+  }
+  state.urlGameId = normalizedGameId;
+  window.history.replaceState({}, "", url);
 }
 
 function setNotice(message) {
@@ -135,6 +317,7 @@ function notificationType(status) {
 function pushNotification(message, status = "info") {
   if (!message) return;
   const id = (state.notificationId += 1);
+  playNotificationSound(status);
   state.notifications = [
     ...state.notifications.slice(-3),
     {
@@ -159,9 +342,21 @@ function showMessage(message, status = "info") {
   }
 }
 
+function activeGameCode() {
+  return normalizeGameIdInput(state.game?.id || state.urlGameId || "");
+}
+
+function renderConnectionPill() {
+  const connectionText = state.online ? "online" : "offline";
+  const gameCode = activeGameCode();
+  connectionPill.textContent = gameCode ? `${connectionText} - ${gameCode}` : connectionText;
+  connectionPill.classList.toggle("is-online", state.online);
+  connectionPill.classList.toggle("has-game-code", Boolean(gameCode));
+}
+
 function updateConnection(online) {
-  connectionPill.textContent = online ? "online" : "offline";
-  connectionPill.classList.toggle("is-online", online);
+  state.online = online;
+  renderConnectionPill();
 }
 
 function activeViewFromGame(game) {
@@ -179,6 +374,8 @@ function setJoinData(response) {
   state.playerId = response.playerId;
   state.gameUrl = response.gameUrl;
   state.qrCode = response.qrCode;
+  state.prefillGameId = response.gameId || state.prefillGameId;
+  updateGameQuery(response.gameId);
   saveSession();
   return true;
 }
@@ -210,7 +407,7 @@ async function joinGame(formData) {
 
 async function rejoinPreviousGame() {
   const stored = readSession();
-  const targetGameId = initialGameId || stored?.gameId;
+  const targetGameId = state.urlGameId || stored?.gameId;
   const targetPlayerId = stored?.playerId;
   if (!targetGameId || !targetPlayerId) return;
 
@@ -220,9 +417,9 @@ async function rejoinPreviousGame() {
   });
   if (setJoinData(response)) {
     setNotice("Rejoined game.");
-  } else if (initialGameId) {
+  } else if (state.urlGameId) {
     localStorage.removeItem(sessionKey);
-    state.prefillGameId = initialGameId;
+    state.prefillGameId = state.urlGameId;
     render();
   } else {
     localStorage.removeItem(sessionKey);
@@ -260,7 +457,13 @@ async function restartGame() {
   if (!response.ok) setNotice(response.error);
 }
 
+function confirmGameExit(message) {
+  return window.confirm(message);
+}
+
 async function endGame() {
+  if (!state.game) return;
+  if (!confirmGameExit("End this game for everyone?")) return;
   const response = await emitAck("end_game", {
     gameId: state.game.id
   });
@@ -276,6 +479,8 @@ function resetLocalGame(message = "") {
   state.qrCode = "";
   state.playerId = "";
   state.notifications = [];
+  state.prefillGameId = "";
+  updateGameQuery("");
   state.notice = message;
   render();
 }
@@ -285,6 +490,7 @@ async function leaveGame() {
     resetLocalGame("You left the game.");
     return;
   }
+  if (!confirmGameExit("Leave this game?")) return;
 
   const response = await emitAck("leave_game", {
     gameId: state.game.id
@@ -538,22 +744,100 @@ function captureVideoFrame() {
 }
 
 function formatSeconds(ms) {
-  return `${Math.max(0, Math.ceil(ms / 1000))}s`;
+  const seconds = Math.max(0, Math.ceil(ms / 10) / 100);
+  return `${seconds.toFixed(2)}s`;
 }
 
-function timerMarkup(round, { showChip = true } = {}) {
-  if (!round) return "";
-  const total = Math.max(1, round.expiresAt - round.startedAt);
-  const left = Math.max(0, round.expiresAt - Date.now());
-  const width = Math.round((left / total) * 100);
+function willEndAfterCountdown(game) {
+  return game.roundsAwarded >= game.normalRounds && game.leaders?.length === 1;
+}
+
+function countdownState(game) {
+  const round = game?.currentRound;
+  const now = Date.now();
+  if (round?.status === "active") {
+    const total = Math.max(1, round.expiresAt - round.startedAt);
+    return {
+      mode: "round",
+      label: "Round timer",
+      startedAt: round.startedAt,
+      targetAt: round.expiresAt,
+      left: Math.max(0, round.expiresAt - now),
+      total
+    };
+  }
+
+  if (game?.nextRoundAt) {
+    const startedAt = game.nextRoundStartedAt || now;
+    const total = Math.max(1, game.nextRoundAt - startedAt);
+    return {
+      mode: "break",
+      label: willEndAfterCountdown(game) ? "Final scores timer" : "Next object timer",
+      startedAt,
+      targetAt: game.nextRoundAt,
+      left: Math.max(0, game.nextRoundAt - now),
+      total
+    };
+  }
+
+  return null;
+}
+
+function countdownTitle(game, countdown) {
+  if (countdown?.mode === "break") return willEndAfterCountdown(game) ? "Final scores soon" : "Next object soon";
+  return game?.currentRound?.item || "Get ready";
+}
+
+function countdownLabel(game, countdown) {
+  if (countdown?.mode === "break") return willEndAfterCountdown(game) ? "Final scores in" : "Next object in";
+  return `Round ${game.roundsAwarded + 1} of ${game.normalRounds}${game.roundsAwarded >= game.normalRounds ? " - tie breaker" : ""}`;
+}
+
+function alertFlashDuration(left) {
+  const ratio = Math.max(0, Math.min(1, left / 10000));
+  return (0.12 + ratio * 0.78).toFixed(2);
+}
+
+function timerMarkup(countdown, { showChip = true } = {}) {
+  if (!countdown) return "";
+  const left = Math.max(0, countdown.targetAt - Date.now());
+  const width = Math.max(0, Math.min(100, Math.round((left / countdown.total) * 100)));
   return `
     <div class="stack">
-      <div class="timer-bar" aria-label="Round timer">
+      <div class="timer-bar" aria-label="${escapeHtml(countdown.label)}">
         <div class="timer-fill" style="width:${width}%"></div>
       </div>
       ${showChip ? `<span class="status-chip">${formatSeconds(left)}</span>` : ""}
     </div>
   `;
+}
+
+function updateCountdownDisplays() {
+  const countdown = countdownState(state.game);
+  if (!countdown) return;
+
+  const left = Math.max(0, countdown.targetAt - Date.now());
+  const fill = document.querySelector(".timer-fill");
+  const chip = document.querySelector(".round-time");
+  if (fill) fill.style.width = `${Math.max(0, Math.min(100, Math.round((left / countdown.total) * 100)))}%`;
+  if (chip) chip.textContent = formatSeconds(left);
+
+  const isUrgent = countdown.mode === "round" && left > 0 && left <= 10000;
+  const duration = `${alertFlashDuration(left)}s`;
+  const alert = document.querySelector(".urgency-alert");
+  if (alert) {
+    alert.classList.toggle("is-visible", isUrgent);
+    alert.style.setProperty("--alert-duration", duration);
+  }
+
+  const warning = document.querySelector(".last-chance-warning");
+  if (warning) {
+    warning.classList.toggle("is-visible", isUrgent);
+    warning.style.setProperty("--alert-duration", duration);
+    const time = warning.querySelector(".last-chance-time");
+    if (time) time.textContent = formatSeconds(left);
+  }
+  playCountdownTick(countdown, left, isUrgent);
 }
 
 function playerRows(players) {
@@ -736,7 +1020,7 @@ function renderHome() {
     <section class="screen screen-grid">
       <div class="hero-side">
         <div class="hero-art">
-          <img src="/assets/quest-camera.svg" alt="">
+          <img src="${assetUrl("/assets/quest-camera.svg")}" alt="">
           <h1>Capture Quest</h1>
           <p>Fast photo rounds for classrooms, living rooms, and rainy afternoons.</p>
         </div>
@@ -775,7 +1059,7 @@ function renderCreate() {
     <section class="screen screen-grid">
       <div class="hero-side">
         <div class="hero-art">
-          <img src="/assets/quest-camera.svg" alt="">
+          <img src="${assetUrl("/assets/quest-camera.svg")}" alt="">
           <h1>Create Game</h1>
           <p>Start a room and share the code when players are ready.</p>
         </div>
@@ -813,7 +1097,7 @@ function renderJoin() {
     <section class="screen screen-grid">
       <div class="hero-side">
         <div class="hero-art">
-          <img src="/assets/quest-camera.svg" alt="">
+          <img src="${assetUrl("/assets/quest-camera.svg")}" alt="">
           <h1>Join Game</h1>
           <p>Use the game ID from the host to jump into the lobby.</p>
         </div>
@@ -919,23 +1203,36 @@ function renderLobby() {
 
 function renderGame() {
   const game = state.game;
-  const round = game.currentRound;
+  const countdown = countdownState(game);
+  const countdownLeft = countdown?.left || 0;
+  const isRoundActive = countdown?.mode === "round";
+  const isUrgent = isRoundActive && countdownLeft > 0 && countdownLeft <= 10000;
+  const alertDuration = `${alertFlashDuration(countdownLeft)}s`;
   const cameraMessage = cameraState.error || (cameraState.stream ? "Camera ready" : "Starting camera");
-  const cameraDisabled = !cameraState.stream || Boolean(cameraState.error) || cameraState.sending;
+  const cameraDisabled = !isRoundActive || !cameraState.stream || Boolean(cameraState.error) || cameraState.sending;
   const isOwner = game.me?.id === game.ownerPlayerId;
+  const exitButtonId = isOwner ? "endGameButton" : "leaveGameButton";
+  const exitLabel = isOwner ? "End game" : "Leave game";
   app.innerHTML = `
     <section class="screen game-screen">
       <video id="cameraVideo" class="game-camera-video" autoplay playsinline muted></video>
       <div class="game-camera-shade"></div>
+      <div class="urgency-alert ${isUrgent ? "is-visible" : ""}" style="--alert-duration:${alertDuration}" aria-hidden="true"></div>
       <div class="game-overlay">
+        <button class="game-exit-button" id="${exitButtonId}" type="button" aria-label="${exitLabel}" title="${exitLabel}">x</button>
         <header class="game-hud">
           <div class="game-hud-top">
-            <span class="game-round-label">Round ${game.roundsAwarded + 1} of ${game.normalRounds}${game.roundsAwarded >= game.normalRounds ? " · tie breaker" : ""}</span>
-            <span class="round-time">${formatSeconds(Math.max(0, (round?.expiresAt || Date.now()) - Date.now()))}</span>
+            <span class="game-round-label">${escapeHtml(countdownLabel(game, countdown))}</span>
+            <span class="round-time">${formatSeconds(countdownLeft)}</span>
           </div>
-          <h1 class="game-target-word">${escapeHtml(round?.item || "Get ready")}</h1>
-          ${timerMarkup(round, { showChip: false })}
+          <h1 class="game-target-word">${escapeHtml(countdownTitle(game, countdown))}</h1>
+          ${timerMarkup(countdown, { showChip: false })}
+          <div class="last-chance-warning ${isUrgent ? "is-visible" : ""}" style="--alert-duration:${alertDuration}" aria-live="polite">
+            <span>Last chance</span>
+            <strong class="last-chance-time">${formatSeconds(countdownLeft)}</strong>
+          </div>
           <div class="game-info-strip">
+            ${countdown?.mode === "break" && game.lastResult?.message ? `<span>${escapeHtml(game.lastResult.message)}</span>` : ""}
             <span>${escapeHtml(cameraMessage)}</span>
             <span>${game.players.length}/${game.maxPlayers} players</span>
             <span>${game.itemQueueCount} backups</span>
@@ -954,11 +1251,6 @@ function renderGame() {
             <button class="primary-button game-shutter-button" id="submitPhotoButton" type="button" ${cameraDisabled ? "disabled" : ""}>
               ${cameraState.sending ? "Checking..." : "Snap and verify"}
             </button>
-            ${
-              isOwner
-                ? `<button class="danger-button game-small-action" id="endGameButton" type="button">End game</button>`
-                : `<button class="secondary-button game-small-action" id="leaveGameButton" type="button">Leave game</button>`
-            }
           </div>
         </footer>
       </div>
@@ -1001,6 +1293,7 @@ function render() {
   state.timerInterval = null;
 
   state.view = activeViewFromGame(state.game) || state.view;
+  renderConnectionPill();
   document.body.classList.toggle("is-game-active", state.view === "game");
   if (state.view === "home") renderHome();
   if (state.view === "create") renderCreate();
@@ -1009,17 +1302,9 @@ function render() {
   if (state.view === "game") renderGame();
   if (state.view === "end") renderEnd();
 
-  if (state.game?.currentRound?.status === "active") {
-    state.timerInterval = setInterval(() => {
-      const fill = document.querySelector(".timer-fill");
-      const chip = document.querySelector(".round-time");
-      const round = state.game.currentRound;
-      if (!fill || !chip || !round) return;
-      const total = Math.max(1, round.expiresAt - round.startedAt);
-      const left = Math.max(0, round.expiresAt - Date.now());
-      fill.style.width = `${Math.round((left / total) * 100)}%`;
-      chip.textContent = formatSeconds(left);
-    }, 500);
+  if (countdownState(state.game)) {
+    updateCountdownDisplays();
+    state.timerInterval = setInterval(updateCountdownDisplays, 25);
   }
 
   syncCameraWithView();
@@ -1109,6 +1394,7 @@ socket.on("capture_notice", (result) => {
 socket.on("game_ended", ({ winner, message }) => {
   cameraState.sending = false;
   state.notice = message || (winner ? `${winner.username} wins.` : "Game ended.");
+  playGameEndedSound(state.game?.id || "");
   render();
 });
 
@@ -1123,6 +1409,35 @@ socket.on("left_game", ({ message }) => {
 leaderboardButton.addEventListener("click", openLeaderboard);
 closeLeaderboardButton.addEventListener("click", () => leaderboardDialog.close());
 
+document.addEventListener(
+  "pointerdown",
+  () => {
+    unlockAudio();
+  },
+  { once: true, capture: true }
+);
+
+document.addEventListener(
+  "click",
+  (event) => {
+    if (event.target instanceof Element && event.target.closest("button")) playButtonSound();
+  },
+  true
+);
+
+document.addEventListener("gesturestart", preventZoomGesture, { passive: false });
+document.addEventListener("gesturechange", preventZoomGesture, { passive: false });
+document.addEventListener("gestureend", preventZoomGesture, { passive: false });
+document.addEventListener(
+  "wheel",
+  (event) => {
+    if (event.ctrlKey) preventZoomGesture(event);
+  },
+  { passive: false }
+);
+document.addEventListener("keydown", preventZoomShortcut);
+document.addEventListener("touchend", preventDoubleTapZoom, { passive: false });
+
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && isCameraExpected()) {
     resetCameraHealth();
@@ -1134,7 +1449,17 @@ document.addEventListener("visibilitychange", () => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+  const hadServiceWorkerController = Boolean(navigator.serviceWorker.controller);
+  let reloadingForServiceWorkerUpdate = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadServiceWorkerController || reloadingForServiceWorkerUpdate) return;
+    reloadingForServiceWorkerUpdate = true;
+    window.location.reload();
+  });
+  navigator.serviceWorker
+    .register(assetUrl("/service-worker.js"))
+    .then((registration) => registration.update())
+    .catch(() => {});
 }
 
 render();

@@ -2,18 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#39c7d4">
     <title>Capture Quest</title>
-    <link rel="manifest" href="/manifest.webmanifest">
-    <link rel="icon" href="/assets/quest-camera.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/styles.css">
+    <link rel="manifest" href="/manifest.webmanifest?v=__ASSET_VERSION__">
+    <link rel="icon" href="/assets/quest-camera.svg?v=__ASSET_VERSION__" type="image/svg+xml">
+    <link rel="stylesheet" href="/styles.css?v=__ASSET_VERSION__">
   </head>
   <body>
     <div class="app-shell">
       <header class="top-bar">
         <a class="brand" href="/" aria-label="Capture Quest home">
-          <img src="/assets/quest-camera.svg" alt="" width="48" height="48">
+          <img src="/assets/quest-camera.svg?v=__ASSET_VERSION__" alt="" width="48" height="48">
           <span>
             <strong>Capture Quest</strong>
             <small>camera hunt</small>
@@ -44,7 +44,10 @@
       </li>
     </template>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script type="module" src="/scripts/app.js"></script>
+    <script>
+      window.__CAPTURE_QUEST_ASSET_VERSION__ = "__ASSET_VERSION__";
+    </script>
+    <script src="/socket.io/socket.io.js?v=__ASSET_VERSION__"></script>
+    <script type="module" src="/scripts/app.js?v=__ASSET_VERSION__"></script>
   </body>
 </html>

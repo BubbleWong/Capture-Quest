@@ -8,7 +8,7 @@
   "theme_color": "#39c7d4",
   "icons": [
     {
-      "src": "/assets/quest-camera.svg",
+      "src": "/assets/quest-camera.svg?v=__ASSET_VERSION__",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

@@ -98,6 +98,10 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.connection-pill.has-game-code {
+  letter-spacing: 0;
+}
+
 .connection-pill.is-online {
   background: var(--green);
 }
@@ -623,6 +627,19 @@ body.is-game-active .main-stage {
   pointer-events: none;
 }
 
+.urgency-alert {
+  background: rgba(255, 22, 39, 0.55);
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: fixed;
+  z-index: 2;
+}
+
+.urgency-alert.is-visible {
+  animation: urgency-flash var(--alert-duration, 0.9s) linear infinite;
+}
+
 .game-overlay {
   display: grid;
   gap: 16px;
@@ -630,12 +647,39 @@ body.is-game-active .main-stage {
   min-height: inherit;
   padding: 18px;
   position: relative;
-  z-index: 1;
+  z-index: 3;
+}
+
+.game-exit-button {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.18);
+  color: var(--ink);
+  display: inline-flex;
+  font-size: 1rem;
+  font-weight: 1000;
+  height: 34px;
+  justify-content: center;
+  line-height: 1;
+  position: absolute;
+  right: 18px;
+  text-transform: uppercase;
+  top: 18px;
+  width: 34px;
+  z-index: 4;
+}
+
+.game-exit-button:hover {
+  background: var(--coral);
+  color: #ffffff;
 }
 
 .game-hud {
   display: grid;
   gap: 12px;
+  padding-right: 44px;
   max-width: 980px;
 }
 
@@ -665,6 +709,8 @@ body.is-game-active .main-stage {
 
 .round-time {
   background: var(--yellow);
+  font-family: "SFMono-Regular", "Cascadia Mono", "Roboto Mono", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
   min-width: 72px;
   text-align: center;
 }
@@ -677,6 +723,43 @@ body.is-game-active .main-stage {
   margin: 0;
   overflow-wrap: anywhere;
   text-shadow: 0 5px 0 rgba(0, 0, 0, 0.22), 0 0 28px rgba(0, 0, 0, 0.42);
+}
+
+.last-chance-warning {
+  align-items: center;
+  background: rgba(255, 22, 39, 0.92);
+  border: 0 solid transparent;
+  border-radius: 8px;
+  box-shadow: none;
+  color: #ffffff;
+  display: inline-flex;
+  font-weight: 1000;
+  gap: 12px;
+  height: 0;
+  justify-content: center;
+  max-width: 360px;
+  opacity: 0;
+  overflow: hidden;
+  padding: 0 14px;
+  text-transform: uppercase;
+}
+
+.last-chance-warning.is-visible {
+  animation: last-chance-pulse var(--alert-duration, 0.9s) linear infinite;
+  border-width: 2px;
+  border-color: #ffffff;
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.22);
+  height: auto;
+  min-height: 48px;
+  opacity: 1;
+  padding: 10px 14px;
+}
+
+.last-chance-time {
+  font-family: "SFMono-Regular", "Cascadia Mono", "Roboto Mono", Consolas, monospace;
+  font-size: 1.45rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .game-hud .stack {
@@ -781,10 +864,6 @@ body.is-game-active .main-stage {
   min-height: 58px;
 }
 
-.game-small-action {
-  flex: 0 1 160px;
-}
-
 @keyframes toast-life {
   0% {
     opacity: 0;
@@ -798,6 +877,26 @@ body.is-game-active .main-stage {
   100% {
     opacity: 0;
     transform: translateY(-8px) scale(0.98);
+  }
+}
+
+@keyframes urgency-flash {
+  0%,
+  100% {
+    opacity: 0.12;
+  }
+  50% {
+    opacity: 0.58;
+  }
+}
+
+@keyframes last-chance-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
   }
 }
 
@@ -893,6 +992,11 @@ body.is-game-active .main-stage {
     padding: 14px;
   }
 
+  .game-exit-button {
+    right: 14px;
+    top: 14px;
+  }
+
   .game-action-row {
     align-items: stretch;
   }
@@ -913,7 +1017,7 @@ body.is-game-active .main-stage {
   }
 
   .connection-pill {
-    max-width: 112px;
+    max-width: 164px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -956,8 +1060,7 @@ body.is-game-active .main-stage {
     max-width: 104px;
   }
 
-  .game-shutter-button,
-  .game-small-action {
+  .game-shutter-button {
     flex-basis: 100%;
   }
 }

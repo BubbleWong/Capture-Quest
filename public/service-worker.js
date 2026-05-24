@@ -1,11 +1,13 @@
-const cacheName = "capture-quest-v2";
+const assetVersion = new URL(self.location.href).searchParams.get("v") || "dev";
+const cacheName = `capture-quest-${assetVersion}`;
+const versionedAsset = (path) => `${path}?v=${encodeURIComponent(assetVersion)}`;
 const staticAssets = [
   "/",
   "/index.html",
-  "/styles.css",
-  "/scripts/app.js",
-  "/assets/quest-camera.svg",
-  "/manifest.webmanifest"
+  versionedAsset("/styles.css"),
+  versionedAsset("/scripts/app.js"),
+  versionedAsset("/assets/quest-camera.svg"),
+  versionedAsset("/manifest.webmanifest")
 ];
 
 self.addEventListener("install", (event) => {
@@ -23,7 +25,9 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/socket.io") || url.pathname.startsWith("/api")) return;
 
   event.respondWith(

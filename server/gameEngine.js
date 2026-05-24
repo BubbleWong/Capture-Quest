@@ -124,6 +124,8 @@ export class GameEngine {
       endedAt: null,
       roundTimer: null,
       nextRoundTimer: null,
+      nextRoundAt: null,
+      nextRoundStartedAt: null,
       loadingItems: null
     };
     this.games.set(gameId, game);
@@ -222,6 +224,8 @@ export class GameEngine {
     game.currentRound = null;
     game.lastResult = null;
     game.winner = null;
+    game.nextRoundAt = null;
+    game.nextRoundStartedAt = null;
     game.endedAt = null;
     game.startedAt = null;
     game.itemQueue = [];
@@ -329,6 +333,8 @@ export class GameEngine {
       leaders,
       allReady,
       itemQueueCount: game.itemQueue.length,
+      nextRoundAt: game.nextRoundAt,
+      nextRoundStartedAt: game.nextRoundStartedAt,
       currentRound: game.currentRound
         ? {
             id: game.currentRound.id,
@@ -476,6 +482,8 @@ export class GameEngine {
 
   async startRound(game) {
     this.clearRoundTimer(game);
+    game.nextRoundAt = null;
+    game.nextRoundStartedAt = null;
     if (this.shouldEndGame(game)) {
       await this.endGame(game);
       return;
@@ -602,7 +610,6 @@ export class GameEngine {
     };
 
     this.io.to(game.id).emit("round_result", game.lastResult);
-    this.emitState(game);
     this.scheduleNextStep(game);
   }
 
@@ -619,13 +626,18 @@ export class GameEngine {
       message: `No one found ${round.item}.`
     };
     this.io.to(game.id).emit("round_result", game.lastResult);
-    this.emitState(game);
     this.scheduleNextStep(game);
   }
 
   scheduleNextStep(game) {
     this.clearNextRoundTimer(game);
+    game.nextRoundStartedAt = Date.now();
+    game.nextRoundAt = game.nextRoundStartedAt + this.config.game.nextRoundDelayMs;
+    this.emitState(game);
     game.nextRoundTimer = setTimeout(() => {
+      game.nextRoundTimer = null;
+      game.nextRoundAt = null;
+      game.nextRoundStartedAt = null;
       this.startRound(game).catch((error) => {
         this.logger.warn(`Next round failed: ${error.message}`);
       });
@@ -679,6 +691,8 @@ export class GameEngine {
   clearNextRoundTimer(game) {
     if (game.nextRoundTimer) clearTimeout(game.nextRoundTimer);
     game.nextRoundTimer = null;
+    game.nextRoundAt = null;
+    game.nextRoundStartedAt = null;
   }
 
   clearTimers(game) {

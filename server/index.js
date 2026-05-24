@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import express from "express";
@@ -19,13 +21,76 @@ const io = new Server(server, {
 });
 
 const publicDir = path.join(projectRoot, "public");
+const versionedFiles = [
+  "index.html",
+  "manifest.webmanifest",
+  "service-worker.js",
+  "styles.css",
+  "scripts/app.js",
+  "assets/quest-camera.svg"
+];
+const indexTemplate = fs.readFileSync(path.join(publicDir, "index.html"), "utf8");
+const manifestTemplate = fs.readFileSync(path.join(publicDir, "manifest.webmanifest"), "utf8");
 const database = await createDatabase(config);
 const llm = createLlm(config);
 const engine = new GameEngine({ io, config, llm, database });
 const cloudflareTunnel = createCloudflareTunnel(config);
 
 app.use(express.json({ limit: "2mb" }));
-app.use(express.static(publicDir));
+
+function currentAssetVersion() {
+  if (process.env.CAPTURE_QUEST_ASSET_VERSION) return process.env.CAPTURE_QUEST_ASSET_VERSION;
+  const signature = versionedFiles
+    .map((file) => {
+      const stats = fs.statSync(path.join(publicDir, file));
+      return `${file}:${stats.size}:${Math.trunc(stats.mtimeMs)}`;
+    })
+    .join("|");
+  return crypto.createHash("sha1").update(signature).digest("hex").slice(0, 12);
+}
+
+function withAssetVersion(content, assetVersion = currentAssetVersion()) {
+  return content.replaceAll("__ASSET_VERSION__", encodeURIComponent(assetVersion));
+}
+
+function setNoStore(response) {
+  response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  response.setHeader("Pragma", "no-cache");
+  response.setHeader("Expires", "0");
+  response.setHeader("Surrogate-Control", "no-store");
+}
+
+function setStaticCacheHeaders(response, filePath) {
+  const fileName = path.basename(filePath);
+  if (fileName === "index.html" || fileName === "service-worker.js" || fileName === "manifest.webmanifest") {
+    setNoStore(response);
+    return;
+  }
+
+  if (response.req?.query?.v === currentAssetVersion()) {
+    response.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  } else {
+    setNoStore(response);
+  }
+}
+
+function sendIndex(_request, response) {
+  setNoStore(response);
+  response.type("html").send(withAssetVersion(indexTemplate));
+}
+
+app.get("/", sendIndex);
+app.get("/index.html", sendIndex);
+app.get("/manifest.webmanifest", (_request, response) => {
+  setNoStore(response);
+  response.type("application/manifest+json").send(withAssetVersion(manifestTemplate));
+});
+app.use(
+  express.static(publicDir, {
+    index: false,
+    setHeaders: setStaticCacheHeaders
+  })
+);
 
 function ack(callback, payload) {
   if (typeof callback === "function") callback(payload);
@@ -60,7 +125,8 @@ app.get("/api/health", (_request, response) => {
   response.json({
     ok: true,
     database: database.enabled ? "postgres" : "memory",
-    model: config.openRouter.model
+    model: config.openRouter.model,
+    assetVersion: currentAssetVersion()
   });
 });
 
@@ -69,7 +135,7 @@ app.use("/api", (_request, response) => {
 });
 
 app.get("*", (_request, response) => {
-  response.sendFile(path.join(publicDir, "index.html"));
+  sendIndex(_request, response);
 });
 
 io.on("connection", (socket) => {
