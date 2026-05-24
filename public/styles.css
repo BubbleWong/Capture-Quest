@@ -479,26 +479,42 @@ button:disabled {
   gap: 12px;
 }
 
-.camera-input {
-  display: none;
+.camera-lobby-status {
+  display: grid;
+  gap: 8px;
 }
 
-.preview {
-  align-items: center;
+.camera-feed {
   aspect-ratio: 4 / 3;
-  background: #ecf8ff;
-  border: 2px dashed rgba(23, 32, 51, 0.45);
+  background: #172033;
+  border: 2px solid var(--ink);
   border-radius: 8px;
-  display: grid;
-  justify-items: center;
   min-height: 180px;
   overflow: hidden;
+  position: relative;
 }
 
-.preview img {
+.camera-video {
+  background: #172033;
+  display: block;
   height: 100%;
   object-fit: cover;
   width: 100%;
+}
+
+.camera-shutter {
+  bottom: 12px;
+  left: 12px;
+  position: absolute;
+  right: 12px;
+  width: calc(100% - 24px);
+}
+
+.camera-message {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 850;
+  margin: 0;
 }
 
 .notice {

@@ -29,6 +29,13 @@ const defaults = {
     appTitle: "Capture Quest",
     referer: "",
     mockWhenMissingKey: true
+  },
+  cloudflare: {
+    enabled: false,
+    token: "",
+    domain: "",
+    command: "cloudflared",
+    url: ""
   }
 };
 
@@ -84,9 +91,26 @@ function applyEnv(config) {
         process.env.OPENROUTER_MOCK_WHEN_MISSING_KEY,
         config.openRouter.mockWhenMissingKey
       )
+    },
+    cloudflare: {
+      enabled: boolFromEnv(process.env.CLOUDFLARE_TUNNEL_ENABLED, config.cloudflare.enabled),
+      token: process.env.CLOUDFLARE_TUNNEL_TOKEN || config.cloudflare.token,
+      domain: process.env.CLOUDFLARE_TUNNEL_DOMAIN || config.cloudflare.domain,
+      command: process.env.CLOUDFLARED_COMMAND || config.cloudflare.command,
+      url: process.env.CLOUDFLARE_TUNNEL_URL || config.cloudflare.url
     }
   });
 }
 
-export const config = applyEnv(mergeDeep(defaults, await loadLocalConfig()));
+function finalizeConfig(config) {
+  if (!config.publicBaseUrl && config.cloudflare.domain) {
+    return {
+      ...config,
+      publicBaseUrl: `https://${config.cloudflare.domain.replace(/^https?:\/\//, "").replace(/\/$/, "")}`
+    };
+  }
+  return config;
+}
+
+export const config = finalizeConfig(applyEnv(mergeDeep(defaults, await loadLocalConfig())));
 export const projectRoot = rootDir;

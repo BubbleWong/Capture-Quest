@@ -210,6 +210,48 @@ export class GameEngine {
     return { game, player };
   }
 
+  async endGameByOwner(socket, payload = {}) {
+    const session = this.getSession(socket, payload.gameId);
+    if (!session) return { error: "You are not in this game." };
+    const { game, player } = session;
+    if (game.ownerPlayerId !== player.id) return { error: "Only the game owner can end the game." };
+    if (game.status === "ended") return { error: "The game has already ended." };
+
+    await this.endGame(game, {
+      forced: true,
+      message: "Game ended by owner."
+    });
+    return { game, player };
+  }
+
+  leaveGame(socket, payload = {}) {
+    const session = this.getSession(socket, payload.gameId);
+    if (!session) return { error: "You are not in this game." };
+    const { game, player } = session;
+    if (game.ownerPlayerId === player.id && game.status !== "ended") {
+      return { error: "The owner must end the game instead." };
+    }
+
+    game.players.delete(player.id);
+    this.socketSessions.delete(socket.id);
+    socket.leave(game.id);
+
+    this.io.to(socket.id).emit("left_game", {
+      gameId: game.id,
+      message: "You left the game."
+    });
+
+    if (game.players.size === 0) {
+      this.clearTimers(game);
+      this.games.delete(game.id);
+    } else {
+      this.emitNotice(game, `${player.username} left the game.`);
+      this.emitState(game);
+    }
+
+    return { left: true };
+  }
+
   submitCapture(socket, payload = {}) {
     const session = this.getSession(socket, payload.gameId);
     if (!session) return { error: "You are not in this game." };
@@ -432,13 +474,21 @@ export class GameEngine {
         break;
       }
 
-      this.io.to(player.socketId).emit("submission_result", {
-        status: "miss",
-        message: result.reason || "Not a match yet."
-      });
+      this.penalizeMiss(game, player, result);
     }
 
     round.processing = false;
+  }
+
+  penalizeMiss(game, player, result) {
+    player.score -= 1;
+    this.io.to(player.socketId).emit("submission_result", {
+      status: "miss",
+      penalty: -1,
+      score: player.score,
+      message: `${result.reason || "Not a match yet."} -1 point.`
+    });
+    this.emitState(game);
   }
 
   async awardPoint(game, player, result) {
@@ -494,17 +544,18 @@ export class GameEngine {
     return topPlayers([...game.players.values()]).length === 1;
   }
 
-  async endGame(game) {
+  async endGame(game, options = {}) {
     this.clearTimers(game);
     game.status = "ended";
     game.endedAt = Date.now();
     game.currentRound = null;
-    game.winner = topPlayers([...game.players.values()])[0] || null;
+    const leaders = topPlayers([...game.players.values()]);
+    game.winner = options.forced ? null : leaders[0] || null;
     game.lastResult = {
       status: "ended",
       item: null,
       username: game.winner?.username || "",
-      message: game.winner ? `${game.winner.username} wins.` : "Game ended."
+      message: options.message || (game.winner ? `${game.winner.username} wins.` : "Game ended.")
     };
 
     const players = [...game.players.values()].map(publicPlayer);
@@ -521,7 +572,8 @@ export class GameEngine {
 
     this.io.to(game.id).emit("game_ended", {
       winner: game.winner ? publicPlayer(game.winner) : null,
-      players
+      players,
+      message: game.lastResult.message
     });
     this.emitState(game);
   }

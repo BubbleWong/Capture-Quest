@@ -17,10 +17,21 @@ const state = {
   qrCode: "",
   playerId: "",
   notice: "",
-  selectedPhoto: "",
-  selectedPhotoName: "",
   timerInterval: null,
   prefillGameId: initialGameId
+};
+
+const cameraState = {
+  stream: null,
+  startPromise: null,
+  error: "",
+  failed: false,
+  sending: false,
+  healthTimer: null,
+  intentionalStop: false,
+  stalledSince: 0,
+  lastVideoTime: 0,
+  lastVideoCheckAt: 0
 };
 
 function saveSession() {
@@ -93,6 +104,7 @@ function setJoinData(response) {
 }
 
 async function createGame(formData) {
+  ensureCamera({ rerender: false });
   const response = await emitAck("create_game", {
     username: formData.get("ownerName")
   });
@@ -103,6 +115,7 @@ async function createGame(formData) {
 }
 
 async function joinGame(formData) {
+  ensureCamera({ rerender: false });
   const response = await emitAck("join_game", {
     username: formData.get("playerName"),
     gameId: formData.get("gameId")
@@ -145,10 +158,17 @@ async function setReady(ready) {
 }
 
 async function startGame() {
+  ensureCamera({ rerender: false });
   const response = await emitAck("start_game", {
     gameId: state.game.id
   });
   if (!response.ok) setNotice(response.error);
+}
+
+function enableCamera() {
+  cameraState.failed = false;
+  cameraState.error = "";
+  ensureCamera();
 }
 
 async function restartGame() {
@@ -156,6 +176,235 @@ async function restartGame() {
     gameId: state.game.id
   });
   if (!response.ok) setNotice(response.error);
+}
+
+async function endGame() {
+  const response = await emitAck("end_game", {
+    gameId: state.game.id
+  });
+  if (!response.ok) setNotice(response.error);
+}
+
+function resetLocalGame(message = "") {
+  stopCamera();
+  localStorage.removeItem(sessionKey);
+  state.view = "home";
+  state.game = null;
+  state.gameUrl = "";
+  state.qrCode = "";
+  state.playerId = "";
+  state.notice = message;
+  render();
+}
+
+async function leaveGame() {
+  if (!state.game) {
+    resetLocalGame("You left the game.");
+    return;
+  }
+
+  const response = await emitAck("leave_game", {
+    gameId: state.game.id
+  });
+  if (!response.ok) {
+    setNotice(response.error);
+    return;
+  }
+  resetLocalGame("You left the game.");
+}
+
+function attachCameraStream() {
+  const video = document.querySelector("#cameraVideo");
+  if (!video || !cameraState.stream) return;
+  if (video.srcObject !== cameraState.stream) {
+    video.srcObject = cameraState.stream;
+  }
+  bindCameraVideo(video);
+  video.play().catch(() => {});
+}
+
+function isCameraExpected() {
+  return Boolean(state.game && state.game.status !== "ended");
+}
+
+function resetCameraHealth() {
+  cameraState.stalledSince = 0;
+  cameraState.lastVideoTime = 0;
+  cameraState.lastVideoCheckAt = 0;
+}
+
+function releaseCameraStream() {
+  if (cameraState.stream) {
+    cameraState.intentionalStop = true;
+    for (const track of cameraState.stream.getTracks()) {
+      track.stop();
+    }
+    setTimeout(() => {
+      cameraState.intentionalStop = false;
+    }, 0);
+  }
+  cameraState.stream = null;
+  cameraState.startPromise = null;
+  resetCameraHealth();
+}
+
+function stopCamera() {
+  releaseCameraStream();
+  cameraState.error = "";
+  cameraState.failed = false;
+  cameraState.sending = false;
+  stopCameraHealthMonitor();
+}
+
+function restartCamera(message = "Camera stalled. Reconnecting...") {
+  if (!isCameraExpected() || cameraState.startPromise) return;
+  releaseCameraStream();
+  cameraState.failed = false;
+  cameraState.error = message;
+  ensureCamera({ rerender: state.view === "game" });
+}
+
+function bindCameraVideo(video) {
+  if (video.dataset.cameraBound === "true") return;
+  video.dataset.cameraBound = "true";
+  for (const eventName of ["pause", "stalled", "waiting", "emptied"]) {
+    video.addEventListener(eventName, () => {
+      if (isCameraExpected() && cameraState.stream) {
+        attachCameraStream();
+      }
+    });
+  }
+  video.addEventListener("playing", resetCameraHealth);
+}
+
+function startCameraHealthMonitor() {
+  if (cameraState.healthTimer) return;
+  cameraState.healthTimer = setInterval(checkCameraHealth, 2000);
+}
+
+function stopCameraHealthMonitor() {
+  clearInterval(cameraState.healthTimer);
+  cameraState.healthTimer = null;
+}
+
+function checkCameraHealth() {
+  if (!isCameraExpected()) {
+    stopCameraHealthMonitor();
+    return;
+  }
+  if (document.hidden || cameraState.failed || cameraState.startPromise) return;
+
+  const track = cameraState.stream?.getVideoTracks()[0];
+  if (!track) {
+    ensureCamera({ rerender: state.view === "game" });
+    return;
+  }
+  if (track.readyState === "ended") {
+    restartCamera("Camera disconnected. Reconnecting...");
+    return;
+  }
+
+  const video = document.querySelector("#cameraVideo");
+  if (!video) return;
+  attachCameraStream();
+
+  const now = Date.now();
+  const hasFrame = video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && !video.paused;
+  const videoTimeChanged = video.currentTime !== cameraState.lastVideoTime;
+  if (hasFrame && videoTimeChanged) {
+    cameraState.lastVideoTime = video.currentTime;
+    cameraState.lastVideoCheckAt = now;
+    cameraState.stalledSince = 0;
+    return;
+  }
+
+  if (!cameraState.stalledSince) cameraState.stalledSince = now;
+  if (now - cameraState.stalledSince > 7000 && now - cameraState.lastVideoCheckAt > 7000) {
+    restartCamera();
+  }
+}
+
+function ensureCamera({ rerender = true } = {}) {
+  if (cameraState.stream || cameraState.startPromise || cameraState.failed) {
+    attachCameraStream();
+    return cameraState.startPromise;
+  }
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    cameraState.error = "Camera is not available in this browser.";
+    cameraState.failed = true;
+    if (rerender) render();
+    return null;
+  }
+
+  cameraState.error = "";
+  cameraState.startPromise = navigator.mediaDevices
+    .getUserMedia({
+      audio: false,
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    })
+    .then((stream) => {
+      cameraState.stream = stream;
+      cameraState.failed = false;
+      cameraState.error = "";
+      for (const track of stream.getVideoTracks()) {
+        track.addEventListener("ended", () => {
+          if (!cameraState.intentionalStop && isCameraExpected()) {
+            restartCamera("Camera disconnected. Reconnecting...");
+          }
+        });
+        track.addEventListener("mute", () => {
+          if (!cameraState.intentionalStop && isCameraExpected()) {
+            restartCamera("Camera paused. Reconnecting...");
+          }
+        });
+      }
+      attachCameraStream();
+    })
+    .catch(() => {
+      cameraState.stream = null;
+      cameraState.error = "Allow camera access to snap photos during the game.";
+      cameraState.failed = true;
+    })
+    .finally(() => {
+      cameraState.startPromise = null;
+      if (rerender) render();
+    });
+
+  return cameraState.startPromise;
+}
+
+function syncCameraWithView() {
+  if (state.game && state.game.status !== "ended") {
+    startCameraHealthMonitor();
+    attachCameraStream();
+    ensureCamera({ rerender: state.view === "game" });
+  } else {
+    stopCamera();
+  }
+}
+
+function captureVideoFrame() {
+  const video = document.querySelector("#cameraVideo");
+  if (!cameraState.stream || !video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+    setNotice("Camera is not ready yet.");
+    return "";
+  }
+
+  const sourceWidth = video.videoWidth || 1280;
+  const sourceHeight = video.videoHeight || 720;
+  const maxSide = 1280;
+  const ratio = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(sourceWidth * ratio));
+  canvas.height = Math.max(1, Math.round(sourceHeight * ratio));
+  const context = canvas.getContext("2d");
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.72);
 }
 
 function formatSeconds(ms) {
@@ -338,6 +587,8 @@ function renderLobby() {
   const game = state.game;
   const me = game.me;
   const isOwner = me?.id === game.ownerPlayerId;
+  const cameraReady = Boolean(cameraState.stream);
+  const cameraMessage = cameraState.error || (cameraReady ? "Camera ready" : "Camera permission needed");
   app.innerHTML = `
     <section class="screen lobby-layout">
       <div class="panel-title">
@@ -354,6 +605,10 @@ function renderLobby() {
       <aside class="compact-panel stack">
         <h2>Players ${game.players.length}/${game.maxPlayers}</h2>
         <ul class="player-list">${playerRows(game.players)}</ul>
+        <div class="camera-lobby-status">
+          <p class="camera-message">${escapeHtml(cameraMessage)}</p>
+          ${cameraReady ? "" : `<button class="secondary-button" id="enableCameraButton" type="button">Enable camera</button>`}
+        </div>
         <button class="${me?.ready ? "secondary-button" : "primary-button"}" id="readyButton" type="button">
           ${me?.ready ? "Set not ready" : "Ready"}
         </button>
@@ -362,21 +617,31 @@ function renderLobby() {
             ? `<button class="primary-button" id="startButton" type="button" ${!game.allReady || game.status === "loading" ? "disabled" : ""}>Start game</button>`
             : ""
         }
+        ${
+          isOwner
+            ? `<button class="danger-button" id="endGameButton" type="button">End game</button>`
+            : `<button class="secondary-button" id="leaveGameButton" type="button">Leave game</button>`
+        }
       </aside>
     </section>
   `;
 
   document.querySelector("#readyButton").addEventListener("click", () => setReady(!me.ready));
+  document.querySelector("#enableCameraButton")?.addEventListener("click", enableCamera);
   document.querySelector("#copyUrlButton").addEventListener("click", async () => {
     await navigator.clipboard?.writeText(state.gameUrl);
     setNotice("Game URL copied.");
   });
   document.querySelector("#startButton")?.addEventListener("click", startGame);
+  document.querySelector("#endGameButton")?.addEventListener("click", endGame);
+  document.querySelector("#leaveGameButton")?.addEventListener("click", leaveGame);
 }
 
 function renderGame() {
   const game = state.game;
   const round = game.currentRound;
+  const cameraMessage = cameraState.error || (cameraState.stream ? "Camera ready" : "Starting camera...");
+  const cameraDisabled = !cameraState.stream || Boolean(cameraState.error) || cameraState.sending;
   app.innerHTML = `
     <section class="screen game-layout">
       <div class="stack">
@@ -387,36 +652,31 @@ function renderGame() {
           ${timerMarkup(round)}
         </div>
         <div class="compact-panel capture-box">
-          <input class="camera-input" id="photoInput" type="file" accept="image/*" capture="environment">
-          <button class="primary-button" id="takePhotoButton" type="button">Take photo</button>
-          <div class="preview" id="previewBox">
-            ${
-              state.selectedPhoto
-                ? `<img src="${state.selectedPhoto}" alt="Selected capture preview">`
-                : `<span class="empty-state">No photo selected</span>`
-            }
+          <div class="camera-feed">
+            <video id="cameraVideo" class="camera-video" autoplay playsinline muted></video>
+            <button class="primary-button camera-shutter" id="submitPhotoButton" type="button" ${cameraDisabled ? "disabled" : ""}>
+              ${cameraState.sending ? "Checking..." : "Snap and verify"}
+            </button>
           </div>
-          <button class="secondary-button" id="submitPhotoButton" type="button" ${state.selectedPhoto ? "" : "disabled"}>Send photo</button>
+          <p class="camera-message">${escapeHtml(cameraMessage)}</p>
         </div>
       </div>
       <aside class="compact-panel stack">
         <h2>Scores</h2>
         <ul class="score-list">${playerRows(game.players)}</ul>
+        ${
+          game.me?.id === game.ownerPlayerId
+            ? `<button class="danger-button" id="endGameButton" type="button">End game</button>`
+            : `<button class="secondary-button" id="leaveGameButton" type="button">Leave game</button>`
+        }
       </aside>
     </section>
   `;
 
-  document.querySelector("#takePhotoButton").addEventListener("click", () => {
-    document.querySelector("#photoInput").click();
-  });
-  document.querySelector("#photoInput").addEventListener("change", async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    state.selectedPhoto = await resizeImage(file);
-    state.selectedPhotoName = file.name;
-    render();
-  });
   document.querySelector("#submitPhotoButton").addEventListener("click", submitPhoto);
+  document.querySelector("#endGameButton")?.addEventListener("click", endGame);
+  document.querySelector("#leaveGameButton")?.addEventListener("click", leaveGame);
+  attachCameraStream();
 }
 
 function renderEnd() {
@@ -427,10 +687,11 @@ function renderEnd() {
       <div class="stack">
         ${renderNotice()}
         <div class="winner-banner">
-          <span class="status-chip">winner</span>
+          <span class="status-chip">${game.winner ? "winner" : "ended"}</span>
           <h1>${escapeHtml(game.winner?.username || "Game complete")}</h1>
         </div>
         ${isOwner ? `<button class="primary-button" id="restartButton" type="button">New game with group</button>` : ""}
+        <button class="secondary-button" id="leaveGameButton" type="button">Leave game</button>
       </div>
       <aside class="compact-panel stack">
         <h2>Final Scores</h2>
@@ -440,6 +701,7 @@ function renderEnd() {
   `;
 
   document.querySelector("#restartButton")?.addEventListener("click", restartGame);
+  document.querySelector("#leaveGameButton").addEventListener("click", leaveGame);
 }
 
 function render() {
@@ -466,46 +728,28 @@ function render() {
       chip.textContent = formatSeconds(left);
     }, 500);
   }
-}
 
-async function resizeImage(file) {
-  const imageUrl = URL.createObjectURL(file);
-  try {
-    const image = await loadImage(imageUrl);
-    const maxSide = 1280;
-    const ratio = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(image.naturalWidth * ratio));
-    canvas.height = Math.max(1, Math.round(image.naturalHeight * ratio));
-    const context = canvas.getContext("2d");
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", 0.72);
-  } finally {
-    URL.revokeObjectURL(imageUrl);
-  }
-}
-
-function loadImage(src) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("Could not load image."));
-    image.src = src;
-  });
+  syncCameraWithView();
 }
 
 async function submitPhoto() {
-  if (!state.selectedPhoto) return;
+  const imageDataUrl = captureVideoFrame();
+  if (!imageDataUrl || cameraState.sending) return;
+
+  cameraState.sending = true;
+  state.notice = "Photo sent. Checking...";
+  render();
+
   const response = await emitAck("submit_capture", {
     gameId: state.game.id,
-    imageDataUrl: state.selectedPhoto
+    imageDataUrl
   });
   if (!response.ok) {
+    cameraState.sending = false;
     setNotice(response.error);
     return;
   }
-  state.selectedPhoto = "";
-  setNotice("Photo sent.");
+  render();
 }
 
 async function openLeaderboard() {
@@ -537,23 +781,27 @@ socket.on("game_state", (game) => {
 });
 
 socket.on("round_started", ({ item }) => {
-  state.selectedPhoto = "";
+  cameraState.sending = false;
   state.notice = `Find ${item}.`;
   render();
 });
 
 socket.on("round_result", (result) => {
-  state.selectedPhoto = "";
+  cameraState.sending = false;
   state.notice = result.message;
   render();
 });
 
 socket.on("submission_result", (result) => {
+  if (result.status !== "checking") {
+    cameraState.sending = false;
+  }
   setNotice(result.message);
 });
 
-socket.on("game_ended", ({ winner }) => {
-  state.notice = winner ? `${winner.username} wins.` : "Game ended.";
+socket.on("game_ended", ({ winner, message }) => {
+  cameraState.sending = false;
+  state.notice = message || (winner ? `${winner.username} wins.` : "Game ended.");
   render();
 });
 
@@ -561,8 +809,22 @@ socket.on("notice", ({ message }) => {
   setNotice(message);
 });
 
+socket.on("left_game", ({ message }) => {
+  resetLocalGame(message || "You left the game.");
+});
+
 leaderboardButton.addEventListener("click", openLeaderboard);
 closeLeaderboardButton.addEventListener("click", () => leaderboardDialog.close());
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && isCameraExpected()) {
+    resetCameraHealth();
+    attachCameraStream();
+    if (!cameraState.stream && !cameraState.failed) {
+      ensureCamera({ rerender: state.view === "game" });
+    }
+  }
+});
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/service-worker.js").catch(() => {});

@@ -23,5 +23,12 @@ export default {
     appTitle: "Capture Quest",
     referer: "http://localhost:3000",
     mockWhenMissingKey: true
+  },
+  cloudflare: {
+    enabled: false,
+    token: "fake-cloudflare-tunnel-token",
+    domain: "capture-quest.example.com",
+    command: "cloudflared",
+    url: "http://127.0.0.1:3000"
   }
 };
