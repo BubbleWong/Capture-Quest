@@ -34,9 +34,17 @@ const cameraState = {
   startPromise: null,
   error: "",
   failed: false,
+  failureReason: "",
   sending: false,
   healthTimer: null,
   intentionalStop: false,
+  activeRequestId: 0,
+  requestStartedAt: 0,
+  retryAt: 0,
+  permissionState: "",
+  permissionStatus: null,
+  permissionWatchStarted: false,
+  lastPermissionCheckAt: 0,
   stalledSince: 0,
   mutedSince: 0,
   streamStartedAt: 0,
@@ -47,6 +55,10 @@ const cameraState = {
   lastVideoTime: 0,
   lastVideoCheckAt: 0
 };
+
+const cameraRequestTimeoutMs = 12000;
+const cameraRetryDelayMs = 3000;
+const cameraPermissionCheckMs = 5000;
 
 const soundState = {
   context: null,
@@ -446,7 +458,17 @@ async function startGame() {
 
 function enableCamera() {
   cameraState.failed = false;
+  cameraState.failureReason = "";
+  cameraState.retryAt = 0;
   cameraState.error = "";
+  if (
+    cameraState.startPromise &&
+    cameraState.requestStartedAt &&
+    Date.now() - cameraState.requestStartedAt > cameraRequestTimeoutMs
+  ) {
+    cameraState.startPromise = null;
+    cameraState.requestStartedAt = 0;
+  }
   ensureCamera();
 }
 
@@ -517,6 +539,155 @@ function isCameraExpected() {
   return Boolean(state.game && state.game.status !== "ended");
 }
 
+function stopMediaStream(stream) {
+  for (const track of stream.getTracks()) {
+    track.stop();
+  }
+}
+
+function cameraFailureMessage(error, failureReason = "") {
+  if (failureReason === "denied") {
+    return "Allow camera access in browser site settings, then tap Enable camera.";
+  }
+  if (failureReason === "unavailable") {
+    return "No camera was found on this device.";
+  }
+
+  switch (error?.name) {
+    case "NotAllowedError":
+    case "SecurityError":
+      return "Allow camera access to snap photos during the game.";
+    case "NotReadableError":
+    case "AbortError":
+      return "Camera is busy. Retrying...";
+    case "OverconstrainedError":
+      return "This camera mode is not available.";
+    default:
+      return "Camera permission is taking too long. Retrying...";
+  }
+}
+
+function permanentCameraFailureReason(error, permissionState) {
+  if (error?.name === "NotFoundError" || error?.name === "OverconstrainedError") {
+    return "unavailable";
+  }
+  if (error?.name === "SecurityError" || (error?.name === "NotAllowedError" && permissionState === "denied")) {
+    return "denied";
+  }
+  return "";
+}
+
+async function refreshCameraPermissionState(force = false) {
+  const now = Date.now();
+  if (!force && now - cameraState.lastPermissionCheckAt < cameraPermissionCheckMs) {
+    return cameraState.permissionState;
+  }
+  if (!navigator.permissions?.query) return cameraState.permissionState;
+
+  cameraState.lastPermissionCheckAt = now;
+  try {
+    const status = await navigator.permissions.query({ name: "camera" });
+    cameraState.permissionStatus = status;
+    cameraState.permissionState = status.state || "";
+    if (!cameraState.permissionWatchStarted) {
+      const handlePermissionChange = () => {
+        cameraState.permissionState = status.state || "";
+        if (cameraState.permissionState !== "denied") {
+          cameraState.failed = false;
+          cameraState.failureReason = "";
+          cameraState.retryAt = 0;
+          if (isCameraExpected()) {
+            ensureCamera({ rerender: state.view === "game" });
+          }
+        } else if (!cameraState.stream) {
+          cameraState.failed = true;
+          cameraState.failureReason = "denied";
+          cameraState.error = cameraFailureMessage(null, "denied");
+          if (state.view === "game" || state.view === "lobby") render();
+        }
+      };
+      if (status.addEventListener) {
+        status.addEventListener("change", handlePermissionChange);
+      } else {
+        status.onchange = handlePermissionChange;
+      }
+      cameraState.permissionWatchStarted = true;
+    }
+    return cameraState.permissionState;
+  } catch {
+    return cameraState.permissionState;
+  }
+}
+
+function acceptCameraStream(stream, requestId = cameraState.activeRequestId) {
+  if (!isCameraExpected()) {
+    stopMediaStream(stream);
+    return;
+  }
+  if (requestId !== cameraState.activeRequestId && cameraState.stream) {
+    stopMediaStream(stream);
+    return;
+  }
+
+  if (cameraState.stream && cameraState.stream !== stream) {
+    cameraState.intentionalStop = true;
+    stopMediaStream(cameraState.stream);
+    setTimeout(() => {
+      cameraState.intentionalStop = false;
+    }, 0);
+  }
+
+  cameraState.stream = stream;
+  cameraState.streamStartedAt = Date.now();
+  cameraState.failed = false;
+  cameraState.failureReason = "";
+  cameraState.retryAt = 0;
+  cameraState.requestStartedAt = 0;
+  cameraState.error = "";
+  for (const track of stream.getVideoTracks()) {
+    track.addEventListener("ended", () => {
+      if (!cameraState.intentionalStop && isCameraExpected()) {
+        restartCamera("Camera disconnected. Reconnecting...");
+      }
+    });
+    track.addEventListener("mute", () => {
+      cameraState.mutedSince = Date.now();
+    });
+    track.addEventListener("unmute", () => {
+      cameraState.mutedSince = 0;
+      resetCameraHealth();
+    });
+  }
+  resetCameraHealth();
+  attachCameraStream();
+}
+
+async function handleCameraStartFailure(error, requestId) {
+  if (requestId !== cameraState.activeRequestId || cameraState.stream) return;
+
+  const permissionState = await refreshCameraPermissionState(true);
+  const failureReason = permanentCameraFailureReason(error, permissionState);
+  cameraState.stream = null;
+  cameraState.error = cameraFailureMessage(error, failureReason);
+  cameraState.failed = Boolean(failureReason);
+  cameraState.failureReason = failureReason;
+  cameraState.retryAt = failureReason ? 0 : Date.now() + cameraRetryDelayMs;
+}
+
+function markCameraRequestTimedOut({ rerender = false } = {}) {
+  if (!cameraState.startPromise || cameraState.stream || !cameraState.requestStartedAt) return false;
+  if (Date.now() - cameraState.requestStartedAt <= cameraRequestTimeoutMs) return false;
+
+  cameraState.startPromise = null;
+  cameraState.requestStartedAt = 0;
+  cameraState.failed = false;
+  cameraState.failureReason = "";
+  cameraState.retryAt = Date.now() + cameraRetryDelayMs;
+  cameraState.error = cameraFailureMessage();
+  if (rerender) render();
+  return true;
+}
+
 function resetCameraHealth() {
   cameraState.stalledSince = 0;
   cameraState.mutedSince = 0;
@@ -528,16 +699,17 @@ function resetCameraHealth() {
 function releaseCameraStream() {
   if (cameraState.stream) {
     cameraState.intentionalStop = true;
-    for (const track of cameraState.stream.getTracks()) {
-      track.stop();
-    }
+    stopMediaStream(cameraState.stream);
     setTimeout(() => {
       cameraState.intentionalStop = false;
     }, 0);
   }
+  cameraState.activeRequestId += 1;
   cameraState.stream = null;
   cameraState.startPromise = null;
   cameraState.streamStartedAt = 0;
+  cameraState.requestStartedAt = 0;
+  cameraState.retryAt = 0;
   resetCameraHealth();
 }
 
@@ -545,6 +717,7 @@ function stopCamera() {
   releaseCameraStream();
   cameraState.error = "";
   cameraState.failed = false;
+  cameraState.failureReason = "";
   cameraState.sending = false;
   stopCameraHealthMonitor();
 }
@@ -554,6 +727,8 @@ function restartCamera(message = "Camera stalled. Reconnecting...") {
   releaseCameraStream();
   cameraState.lastRestartAt = Date.now();
   cameraState.failed = false;
+  cameraState.failureReason = "";
+  cameraState.retryAt = 0;
   cameraState.error = message;
   ensureCamera({ rerender: state.view === "game" });
 }
@@ -612,7 +787,27 @@ function checkCameraHealth() {
     stopCameraHealthMonitor();
     return;
   }
-  if (document.hidden || cameraState.failed || cameraState.startPromise) return;
+  if (document.hidden) return;
+
+  if (cameraState.startPromise && !cameraState.stream) {
+    markCameraRequestTimedOut({ rerender: state.view === "game" });
+    return;
+  }
+
+  if (cameraState.failed) {
+    if (cameraState.failureReason === "denied") {
+      refreshCameraPermissionState().then((permissionState) => {
+        if (!isCameraExpected() || permissionState === "denied") return;
+        cameraState.failed = false;
+        cameraState.failureReason = "";
+        cameraState.retryAt = 0;
+        ensureCamera({ rerender: state.view === "game" });
+      });
+    }
+    return;
+  }
+
+  if (cameraState.retryAt && Date.now() < cameraState.retryAt) return;
 
   const track = cameraState.stream?.getVideoTracks()[0];
   if (!track) {
@@ -660,19 +855,41 @@ function checkCameraHealth() {
 }
 
 function ensureCamera({ rerender = true } = {}) {
-  if (cameraState.stream || cameraState.startPromise || cameraState.failed) {
+  refreshCameraPermissionState();
+
+  if (cameraState.stream) {
     attachCameraStream();
-    return cameraState.startPromise;
+    return null;
+  }
+
+  if (cameraState.startPromise) {
+    markCameraRequestTimedOut({ rerender });
+    if (cameraState.startPromise) {
+      attachCameraStream();
+      return cameraState.startPromise;
+    }
+  }
+
+  if (cameraState.failed || (cameraState.retryAt && Date.now() < cameraState.retryAt)) {
+    attachCameraStream();
+    return null;
   }
 
   if (!navigator.mediaDevices?.getUserMedia) {
     cameraState.error = "Camera is not available in this browser.";
     cameraState.failed = true;
+    cameraState.failureReason = "unsupported";
     if (rerender) render();
     return null;
   }
 
   cameraState.error = "";
+  cameraState.failed = false;
+  cameraState.failureReason = "";
+  cameraState.retryAt = 0;
+  const requestId = cameraState.activeRequestId + 1;
+  cameraState.activeRequestId = requestId;
+  cameraState.requestStartedAt = Date.now();
   cameraState.startPromise = navigator.mediaDevices
     .getUserMedia({
       audio: false,
@@ -681,34 +898,15 @@ function ensureCamera({ rerender = true } = {}) {
       }
     })
     .then((stream) => {
-      cameraState.stream = stream;
-      cameraState.streamStartedAt = Date.now();
-      cameraState.failed = false;
-      cameraState.error = "";
-      for (const track of stream.getVideoTracks()) {
-        track.addEventListener("ended", () => {
-          if (!cameraState.intentionalStop && isCameraExpected()) {
-            restartCamera("Camera disconnected. Reconnecting...");
-          }
-        });
-        track.addEventListener("mute", () => {
-          cameraState.mutedSince = Date.now();
-        });
-        track.addEventListener("unmute", () => {
-          cameraState.mutedSince = 0;
-          resetCameraHealth();
-        });
-      }
-      attachCameraStream();
+      acceptCameraStream(stream, requestId);
     })
-    .catch(() => {
-      cameraState.stream = null;
-      cameraState.error = "Allow camera access to snap photos during the game.";
-      cameraState.failed = true;
-    })
+    .catch((error) => handleCameraStartFailure(error, requestId))
     .finally(() => {
-      cameraState.startPromise = null;
-      if (rerender) render();
+      if (cameraState.activeRequestId === requestId) {
+        cameraState.startPromise = null;
+        cameraState.requestStartedAt = 0;
+        if (rerender && !cameraState.stream) render();
+      }
     });
 
   return cameraState.startPromise;
@@ -886,31 +1084,33 @@ function gameCodeCells(value) {
   const code = normalizeGameIdInput(value);
   return Array.from({ length: gameCodeLength }, (_, index) => {
     const separator = index === 3 ? `<span class="passcode-separator" aria-hidden="true">-</span>` : "";
+    const isActive = index === Math.min(code.length, gameCodeLength - 1);
+    const classes = ["passcode-cell", code[index] ? "is-filled" : "", isActive ? "is-active" : ""]
+      .filter(Boolean)
+      .join(" ");
     return `
       ${separator}
-      <input
-        class="passcode-cell"
+      <span
+        class="${classes}"
         data-code-index="${index}"
-        inputmode="text"
-        autocomplete="off"
-        autocapitalize="characters"
-        autocorrect="off"
-        spellcheck="false"
-        maxlength="1"
-        aria-label="Game ID character ${index + 1}"
-        value="${escapeHtml(code[index] || "")}"
-      >
+        aria-hidden="true"
+      >${escapeHtml(code[index] || "")}</span>
     `;
   }).join("");
 }
 
 function syncGameCodeInput() {
-  const inputs = [...document.querySelectorAll(".passcode-cell")];
-  const hidden = document.querySelector("#gameIdHidden");
-  if (!hidden) return "";
-  const code = inputs.map((input) => normalizeGameIdInput(input.value)).join("").slice(0, gameCodeLength);
-  hidden.value = code;
+  const source = document.querySelector("#gameIdHidden");
+  const cells = [...document.querySelectorAll(".passcode-cell")];
+  if (!source) return "";
+  const code = normalizeGameIdInput(source.value).slice(0, gameCodeLength);
+  source.value = code;
   state.prefillGameId = code;
+  cells.forEach((cell, index) => {
+    cell.textContent = code[index] || "";
+    cell.classList.toggle("is-filled", Boolean(code[index]));
+    cell.classList.toggle("is-active", index === Math.min(code.length, gameCodeLength - 1));
+  });
   return code;
 }
 
@@ -922,70 +1122,42 @@ function setGameCodeError(message = "") {
 }
 
 function setupGameCodeInput() {
-  const inputs = [...document.querySelectorAll(".passcode-cell")];
-  if (!inputs.length) return;
+  const source = document.querySelector("#gameIdHidden");
+  if (!source) return;
+  let isComposingCode = false;
 
-  function fillFrom(value, startIndex = 0) {
-    const characters = normalizeGameIdInput(value).split("");
-    if (!characters.length) {
-      syncGameCodeInput();
-      return;
-    }
-
-    characters.forEach((character, offset) => {
-      const input = inputs[startIndex + offset];
-      if (input) input.value = character;
-    });
-
-    const nextIndex = Math.min(startIndex + characters.length, gameCodeLength - 1);
-    syncGameCodeInput();
-    setGameCodeError("");
-    inputs[nextIndex]?.focus();
-    inputs[nextIndex]?.select();
+  function focusCodeInput() {
+    source.focus();
+    const end = source.value.length;
+    source.setSelectionRange?.(end, end);
   }
 
-  inputs.forEach((input, index) => {
-    input.addEventListener("focus", () => input.select());
-    input.addEventListener("paste", (event) => {
-      event.preventDefault();
-      fillFrom(event.clipboardData?.getData("text") || "", index);
-    });
-    input.addEventListener("input", () => {
-      const value = normalizeGameIdInput(input.value);
-      if (value.length > 1) {
-        input.value = "";
-        fillFrom(value, index);
-        return;
-      }
+  function updateCodeInput() {
+    syncGameCodeInput();
+    setGameCodeError("");
+    if (source.value.length === gameCodeLength) {
+      document.querySelector("[name='playerName']")?.focus();
+    }
+  }
 
-      input.value = value;
-      const code = syncGameCodeInput();
-      setGameCodeError("");
-      if (value && index < gameCodeLength - 1) {
-        inputs[index + 1].focus();
-        inputs[index + 1].select();
-      } else if (code.length === gameCodeLength) {
-        document.querySelector("[name='playerName']")?.focus();
-      }
-    });
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Backspace" && !input.value && index > 0) {
-        event.preventDefault();
-        inputs[index - 1].value = "";
-        inputs[index - 1].focus();
-        syncGameCodeInput();
-      }
-      if (event.key === "ArrowLeft" && index > 0) {
-        event.preventDefault();
-        inputs[index - 1].focus();
-      }
-      if (event.key === "ArrowRight" && index < gameCodeLength - 1) {
-        event.preventDefault();
-        inputs[index + 1].focus();
-      }
-    });
+  function finishComposition() {
+    isComposingCode = false;
+    updateCodeInput();
+  }
+
+  source.addEventListener("focus", focusCodeInput);
+  source.addEventListener("click", focusCodeInput);
+  source.addEventListener("compositionstart", () => {
+    isComposingCode = true;
   });
-
+  source.addEventListener("compositionend", finishComposition);
+  source.addEventListener("input", (event) => {
+    if (isComposingCode || event.isComposing || event.inputType === "insertCompositionText") return;
+    updateCodeInput();
+  });
+  source.addEventListener("paste", () => {
+    setTimeout(updateCodeInput, 0);
+  });
   syncGameCodeInput();
 }
 
@@ -1108,8 +1280,24 @@ function renderJoin() {
           <h2>Join Game</h2>
           <div class="field game-id-field">
             <span id="gameCodeLabel">Game ID</span>
-            <input id="gameIdHidden" name="gameId" type="hidden" value="${escapeHtml(prefill)}">
             <div class="passcode-input" role="group" aria-labelledby="gameCodeLabel">
+              <input
+                class="passcode-source"
+                id="gameIdHidden"
+                name="gameId"
+                type="text"
+                inputmode="text"
+                lang="en"
+                autocomplete="off"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                maxlength="${gameCodeLength}"
+                pattern="[A-Za-z0-9]*"
+                enterkeyhint="next"
+                aria-label="Game ID"
+                value="${escapeHtml(prefill)}"
+              >
               ${gameCodeCells(prefill)}
             </div>
             <span class="field-hint" id="gameCodeError" aria-live="polite"></span>
@@ -1129,13 +1317,13 @@ function renderJoin() {
   if (prefill.length === gameCodeLength) {
     document.querySelector("[name='playerName']")?.focus();
   } else {
-    document.querySelector(`.passcode-cell[data-code-index="${prefill.length}"]`)?.focus();
+    document.querySelector("#gameIdHidden")?.focus();
   }
   document.querySelector("#joinForm").addEventListener("submit", (event) => {
     event.preventDefault();
     if (syncGameCodeInput().length !== gameCodeLength) {
       setGameCodeError("Enter the 6-character Game ID.");
-      document.querySelector(".passcode-cell")?.focus();
+      document.querySelector("#gameIdHidden")?.focus();
       return;
     }
     joinGame(new FormData(event.currentTarget));
@@ -1442,9 +1630,7 @@ document.addEventListener("visibilitychange", () => {
   if (!document.hidden && isCameraExpected()) {
     resetCameraHealth();
     attachCameraStream();
-    if (!cameraState.stream && !cameraState.failed) {
-      ensureCamera({ rerender: state.view === "game" });
-    }
+    if (!cameraState.stream) ensureCamera({ rerender: state.view === "game" });
   }
 });
 

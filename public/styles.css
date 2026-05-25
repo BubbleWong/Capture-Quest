@@ -272,7 +272,26 @@ button:disabled {
   gap: 8px;
   grid-template-columns: repeat(3, minmax(0, 1fr)) auto repeat(3, minmax(0, 1fr));
   max-width: 430px;
+  position: relative;
   width: 100%;
+}
+
+.passcode-source {
+  background: transparent;
+  border: 0;
+  caret-color: transparent;
+  color: transparent;
+  font-size: 16px;
+  inset: 0;
+  opacity: 0.01;
+  padding: 0;
+  position: absolute;
+  width: 100%;
+  z-index: 2;
+}
+
+.passcode-source:focus {
+  outline: 0;
 }
 
 .passcode-cell {
@@ -282,16 +301,20 @@ button:disabled {
   border-radius: 8px;
   box-shadow: inset 0 0 0 1px rgba(75, 125, 255, 0.08);
   color: var(--blue);
-  font-size: 1.55rem;
+  display: grid;
+  font-size: 1.9rem;
   font-weight: 1000;
   min-height: 58px;
   padding: 0;
+  place-items: center;
+  pointer-events: none;
   text-align: center;
   text-transform: uppercase;
+  user-select: none;
   width: 100%;
 }
 
-.passcode-cell:focus {
+.passcode-input:focus-within .passcode-cell.is-active {
   border-color: var(--blue);
   box-shadow: 0 0 0 4px rgba(75, 125, 255, 0.16), inset 0 0 0 1px rgba(75, 125, 255, 0.1);
   outline: 0;
@@ -1033,7 +1056,7 @@ body.is-game-active .main-stage {
   }
 
   .passcode-cell {
-    font-size: 1.35rem;
+    font-size: 1.65rem;
     min-height: 48px;
   }
 
