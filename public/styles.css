@@ -887,6 +887,42 @@ body.is-game-active .main-stage {
   min-height: 58px;
 }
 
+.game-flash-button {
+  flex: 0 0 auto;
+  gap: 8px;
+  min-height: 58px;
+  min-width: 118px;
+}
+
+.game-flash-button.is-on {
+  background: var(--yellow);
+}
+
+.flashlight-glyph {
+  border: 2px solid currentColor;
+  border-radius: 4px 4px 8px 8px;
+  display: inline-block;
+  height: 22px;
+  position: relative;
+  transform: rotate(-14deg);
+  width: 14px;
+}
+
+.flashlight-glyph::before {
+  background: currentColor;
+  border-radius: 4px 4px 1px 1px;
+  content: "";
+  height: 5px;
+  left: 2px;
+  position: absolute;
+  right: 2px;
+  top: -7px;
+}
+
+.game-flash-button.is-on .flashlight-glyph {
+  box-shadow: 0 0 18px rgba(255, 205, 71, 0.9);
+}
+
 @keyframes toast-life {
   0% {
     opacity: 0;
@@ -1083,7 +1119,12 @@ body.is-game-active .main-stage {
     max-width: 104px;
   }
 
+  .game-flash-button {
+    flex: 0 0 104px;
+    min-width: 104px;
+  }
+
   .game-shutter-button {
-    flex-basis: 100%;
+    flex: 1 1 160px;
   }
 }

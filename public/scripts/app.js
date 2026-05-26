@@ -13,6 +13,9 @@ const sessionKey = "captureQuestSession";
 const usernameKey = "captureQuestLastUsername";
 const gameCodeLength = 6;
 const crockfordCharacters = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+const cameraDebugEnabled =
+  query.get("debugCamera") === "1" || localStorage.getItem("captureQuestDebugCamera") === "1";
+const cameraDebugEvents = [];
 
 const state = {
   view: initialGameId ? "join" : "home",
@@ -36,6 +39,12 @@ const cameraState = {
   failed: false,
   failureReason: "",
   sending: false,
+  torchSupported: false,
+  torchOn: false,
+  torchChanging: false,
+  torchError: "",
+  submitToken: 0,
+  pendingSubmitToken: 0,
   healthTimer: null,
   intentionalStop: false,
   activeRequestId: 0,
@@ -59,6 +68,78 @@ const cameraState = {
 const cameraRequestTimeoutMs = 12000;
 const cameraRetryDelayMs = 3000;
 const cameraPermissionCheckMs = 5000;
+
+function describeCameraError(error) {
+  return error
+    ? {
+        name: error.name,
+        message: error.message
+      }
+    : null;
+}
+
+function describeMediaTrack(track) {
+  if (!track) return null;
+  let settings = null;
+  let capabilities = null;
+  try {
+    settings = track.getSettings?.() || null;
+  } catch {
+    settings = null;
+  }
+  try {
+    capabilities = track.getCapabilities?.() || null;
+  } catch {
+    capabilities = null;
+  }
+  return {
+    label: track.label,
+    readyState: track.readyState,
+    enabled: track.enabled,
+    muted: track.muted,
+    settings,
+    capabilities
+  };
+}
+
+function describeCameraVideo(video = document.querySelector("#cameraVideo")) {
+  const track = video?.srcObject?.getVideoTracks?.()[0] || null;
+  return {
+    hasVideo: Boolean(video),
+    connected: Boolean(video?.isConnected),
+    readyState: video?.readyState ?? null,
+    paused: video?.paused ?? null,
+    currentTime: video ? Number(video.currentTime.toFixed(2)) : null,
+    width: video?.videoWidth || 0,
+    height: video?.videoHeight || 0,
+    hasSrcObject: Boolean(video?.srcObject),
+    track: describeMediaTrack(track)
+  };
+}
+
+function cameraDebug(kind, message, data = null) {
+  if (!cameraDebugEnabled) return;
+  const event = {
+    at: new Date().toISOString(),
+    elapsedMs: Math.round(performance.now()),
+    kind,
+    message,
+    data
+  };
+  cameraDebugEvents.push(event);
+  if (cameraDebugEvents.length > 250) cameraDebugEvents.shift();
+  window.__captureQuestCameraDebug = cameraDebugEvents;
+  console.error("[CQDBG]", kind, message, data || "");
+}
+
+if (cameraDebugEnabled) {
+  window.__captureQuestCameraDebug = cameraDebugEvents;
+  window.__captureQuestCameraSnapshot = () => describeCameraVideo();
+  cameraDebug("debug", "camera debug enabled", {
+    href: window.location.href,
+    assetVersion
+  });
+}
 
 const soundState = {
   context: null,
@@ -258,9 +339,9 @@ function saveLastUsername(username) {
   }
 }
 
-function emitAck(event, payload) {
+function emitAck(event, payload, { timeoutMs = 20000 } = {}) {
   return new Promise((resolve) => {
-    socket.timeout(20000).emit(event, payload, (error, response) => {
+    socket.timeout(timeoutMs).emit(event, payload, (error, response) => {
       if (error) {
         resolve({ ok: false, error: "The server did not answer in time." });
       } else {
@@ -524,15 +605,37 @@ async function leaveGame() {
   resetLocalGame("You left the game.");
 }
 
+function currentCameraVideo() {
+  return document.querySelector("#cameraVideo");
+}
+
+function isCurrentCameraVideo(video) {
+  return currentCameraVideo() === video;
+}
+
 function attachCameraStream() {
-  const video = document.querySelector("#cameraVideo");
+  const video = currentCameraVideo();
   if (!video || !cameraState.stream) return;
   if (video.srcObject !== cameraState.stream) {
+    cameraDebug("video", "assign stream to video", describeCameraVideo(video));
     video.srcObject = cameraState.stream;
   }
   bindCameraVideo(video);
   watchCameraFrames(video);
-  video.play().catch(() => {});
+  if (!video.paused && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) return;
+  const playRequest = video.play();
+  if (playRequest?.then) {
+    playRequest
+      .then(() => {
+        cameraDebug("video.play", "resolved", describeCameraVideo(video));
+      })
+      .catch((error) => {
+        cameraDebug("video.play", "rejected", {
+          error: describeCameraError(error),
+          video: describeCameraVideo(video)
+        });
+      });
+  }
 }
 
 function isCameraExpected() {
@@ -543,6 +646,58 @@ function stopMediaStream(stream) {
   for (const track of stream.getTracks()) {
     track.stop();
   }
+}
+
+function activeCameraTrack() {
+  return cameraState.stream?.getVideoTracks()[0] || null;
+}
+
+function refreshTorchSupport(track = activeCameraTrack()) {
+  let supported = false;
+  try {
+    supported = Boolean(track?.getCapabilities?.().torch);
+  } catch {
+    supported = false;
+  }
+
+  cameraState.torchSupported = supported;
+  if (!supported) {
+    cameraState.torchOn = false;
+    cameraState.torchChanging = false;
+  }
+  return supported;
+}
+
+async function setTorch(enabled) {
+  const track = activeCameraTrack();
+  if (!track || !refreshTorchSupport(track) || cameraState.torchChanging) return false;
+
+  cameraState.torchChanging = true;
+  cameraState.torchError = "";
+  if (state.view === "game") render();
+
+  try {
+    await track.applyConstraints({ advanced: [{ torch: Boolean(enabled) }] });
+    cameraState.torchOn = Boolean(enabled);
+    cameraState.torchError = "";
+    return true;
+  } catch {
+    cameraState.torchOn = false;
+    cameraState.torchError = "Flashlight is not available on this camera.";
+    return false;
+  } finally {
+    cameraState.torchChanging = false;
+    if (state.view === "game") render();
+  }
+}
+
+function toggleTorch() {
+  setTorch(!cameraState.torchOn);
+}
+
+function clearPendingSubmit() {
+  cameraState.sending = false;
+  cameraState.pendingSubmitToken = 0;
 }
 
 function cameraFailureMessage(error, failureReason = "") {
@@ -621,15 +776,29 @@ async function refreshCameraPermissionState(force = false) {
 
 function acceptCameraStream(stream, requestId = cameraState.activeRequestId) {
   if (!isCameraExpected()) {
+    cameraDebug("stream", "discard stream because camera is not expected", {
+      requestId,
+      tracks: stream.getTracks().map(describeMediaTrack)
+    });
     stopMediaStream(stream);
     return;
   }
   if (requestId !== cameraState.activeRequestId && cameraState.stream) {
+    cameraDebug("stream", "discard stale stream", {
+      requestId,
+      activeRequestId: cameraState.activeRequestId,
+      tracks: stream.getTracks().map(describeMediaTrack)
+    });
     stopMediaStream(stream);
     return;
   }
 
   if (cameraState.stream && cameraState.stream !== stream) {
+    cameraDebug("stream", "replace existing stream", {
+      requestId,
+      previous: cameraState.stream.getTracks().map(describeMediaTrack),
+      next: stream.getTracks().map(describeMediaTrack)
+    });
     cameraState.intentionalStop = true;
     stopMediaStream(cameraState.stream);
     setTimeout(() => {
@@ -644,22 +813,35 @@ function acceptCameraStream(stream, requestId = cameraState.activeRequestId) {
   cameraState.retryAt = 0;
   cameraState.requestStartedAt = 0;
   cameraState.error = "";
+  cameraState.torchOn = false;
+  cameraState.torchError = "";
+  refreshTorchSupport(stream.getVideoTracks()[0]);
+  cameraDebug("stream", "accepted", {
+    requestId,
+    tracks: stream.getTracks().map(describeMediaTrack),
+    torchSupported: cameraState.torchSupported
+  });
   for (const track of stream.getVideoTracks()) {
     track.addEventListener("ended", () => {
+      refreshTorchSupport();
+      cameraDebug("track", "ended", describeMediaTrack(track));
       if (!cameraState.intentionalStop && isCameraExpected()) {
         restartCamera("Camera disconnected. Reconnecting...");
       }
     });
     track.addEventListener("mute", () => {
       cameraState.mutedSince = Date.now();
+      cameraDebug("track", "mute", describeMediaTrack(track));
     });
     track.addEventListener("unmute", () => {
       cameraState.mutedSince = 0;
       resetCameraHealth();
+      cameraDebug("track", "unmute", describeMediaTrack(track));
     });
   }
   resetCameraHealth();
   attachCameraStream();
+  if (state.view === "game" || state.view === "lobby") render();
 }
 
 async function handleCameraStartFailure(error, requestId) {
@@ -672,6 +854,13 @@ async function handleCameraStartFailure(error, requestId) {
   cameraState.failed = Boolean(failureReason);
   cameraState.failureReason = failureReason;
   cameraState.retryAt = failureReason ? 0 : Date.now() + cameraRetryDelayMs;
+  cameraDebug("gum", "failed", {
+    requestId,
+    error: describeCameraError(error),
+    permissionState,
+    failureReason,
+    retryAt: cameraState.retryAt
+  });
 }
 
 function markCameraRequestTimedOut({ rerender = false } = {}) {
@@ -684,6 +873,10 @@ function markCameraRequestTimedOut({ rerender = false } = {}) {
   cameraState.failureReason = "";
   cameraState.retryAt = Date.now() + cameraRetryDelayMs;
   cameraState.error = cameraFailureMessage();
+  cameraDebug("gum", "timed out", {
+    activeRequestId: cameraState.activeRequestId,
+    retryAt: cameraState.retryAt
+  });
   if (rerender) render();
   return true;
 }
@@ -698,6 +891,7 @@ function resetCameraHealth() {
 
 function releaseCameraStream() {
   if (cameraState.stream) {
+    cameraDebug("stream", "release", cameraState.stream.getTracks().map(describeMediaTrack));
     cameraState.intentionalStop = true;
     stopMediaStream(cameraState.stream);
     setTimeout(() => {
@@ -710,6 +904,10 @@ function releaseCameraStream() {
   cameraState.streamStartedAt = 0;
   cameraState.requestStartedAt = 0;
   cameraState.retryAt = 0;
+  cameraState.torchSupported = false;
+  cameraState.torchOn = false;
+  cameraState.torchChanging = false;
+  cameraState.torchError = "";
   resetCameraHealth();
 }
 
@@ -724,6 +922,10 @@ function stopCamera() {
 
 function restartCamera(message = "Camera stalled. Reconnecting...") {
   if (!isCameraExpected() || cameraState.startPromise) return;
+  cameraDebug("camera", "restart", {
+    message,
+    video: describeCameraVideo()
+  });
   releaseCameraStream();
   cameraState.lastRestartAt = Date.now();
   cameraState.failed = false;
@@ -734,11 +936,19 @@ function restartCamera(message = "Camera stalled. Reconnecting...") {
 }
 
 function softRecoverCamera(video) {
-  if (!cameraState.stream || Date.now() - cameraState.lastRecoveryAt < 10000) return;
+  if (
+    !cameraState.stream ||
+    !isCurrentCameraVideo(video) ||
+    video.srcObject !== cameraState.stream ||
+    Date.now() - cameraState.lastRecoveryAt < 10000
+  ) {
+    return;
+  }
   cameraState.lastRecoveryAt = Date.now();
-  video.srcObject = null;
-  video.load();
-  video.srcObject = cameraState.stream;
+  cameraDebug("video", "soft recover", {
+    isCurrentVideo: isCurrentCameraVideo(video),
+    video: describeCameraVideo(video)
+  });
   video.play().catch(() => {});
 }
 
@@ -747,19 +957,33 @@ function bindCameraVideo(video) {
   video.dataset.cameraBound = "true";
   for (const eventName of ["pause", "stalled", "waiting", "emptied"]) {
     video.addEventListener(eventName, () => {
-      if (isCameraExpected() && cameraState.stream) {
-        softRecoverCamera(video);
+      const isCurrentVideo = isCurrentCameraVideo(video);
+      cameraDebug("video.event", eventName, {
+        isCurrentVideo,
+        video: describeCameraVideo(video)
+      });
+      if (!isCurrentVideo || !isCameraExpected() || !cameraState.stream) return;
+      if (eventName === "stalled" || eventName === "emptied") {
+        if (!cameraState.stalledSince) cameraState.stalledSince = Date.now();
       }
     });
   }
-  video.addEventListener("playing", resetCameraHealth);
+  video.addEventListener("playing", () => {
+    if (!isCurrentCameraVideo(video) || video.srcObject !== cameraState.stream) return;
+    cameraDebug("video.event", "playing", describeCameraVideo(video));
+    resetCameraHealth();
+  });
 }
 
 function watchCameraFrames(video) {
   if (!video.requestVideoFrameCallback || video.dataset.cameraFrameWatch === "true") return;
   video.dataset.cameraFrameWatch = "true";
   const watchFrame = () => {
-    if (document.querySelector("#cameraVideo") !== video || video.srcObject !== cameraState.stream) {
+    if (!isCurrentCameraVideo(video) || video.srcObject !== cameraState.stream) {
+      cameraDebug("video.frames", "watch stopped", {
+        currentVideoMatches: isCurrentCameraVideo(video),
+        streamMatches: video.srcObject === cameraState.stream
+      });
       video.dataset.cameraFrameWatch = "false";
       return;
     }
@@ -811,10 +1035,14 @@ function checkCameraHealth() {
 
   const track = cameraState.stream?.getVideoTracks()[0];
   if (!track) {
+    refreshTorchSupport();
+    cameraDebug("health", "missing video track", describeCameraVideo());
     ensureCamera({ rerender: state.view === "game" });
     return;
   }
+  refreshTorchSupport(track);
   if (track.readyState === "ended") {
+    cameraDebug("health", "track ended", describeMediaTrack(track));
     restartCamera("Camera disconnected. Reconnecting...");
     return;
   }
@@ -824,7 +1052,7 @@ function checkCameraHealth() {
     cameraState.mutedSince = 0;
   }
 
-  const video = document.querySelector("#cameraVideo");
+  const video = currentCameraVideo();
   if (!video) return;
   attachCameraStream();
 
@@ -841,7 +1069,10 @@ function checkCameraHealth() {
   }
 
   if (now - cameraState.streamStartedAt < 15000) return;
-  if (!cameraState.stalledSince) cameraState.stalledSince = now;
+  if (!cameraState.stalledSince) {
+    cameraState.stalledSince = now;
+    cameraDebug("health", "video appears stalled", describeCameraVideo(video));
+  }
   if (now - cameraState.stalledSince > 10000) {
     softRecoverCamera(video);
   }
@@ -850,6 +1081,7 @@ function checkCameraHealth() {
     now - cameraState.lastRestartAt > 120000 &&
     (!cameraState.mutedSince || now - cameraState.mutedSince > 30000)
   ) {
+    cameraDebug("health", "restart after long stall", describeCameraVideo(video));
     restartCamera();
   }
 }
@@ -890,6 +1122,15 @@ function ensureCamera({ rerender = true } = {}) {
   const requestId = cameraState.activeRequestId + 1;
   cameraState.activeRequestId = requestId;
   cameraState.requestStartedAt = Date.now();
+  cameraDebug("gum", "start", {
+    requestId,
+    constraints: {
+      audio: false,
+      video: {
+        facingMode: { ideal: "environment" }
+      }
+    }
+  });
   cameraState.startPromise = navigator.mediaDevices
     .getUserMedia({
       audio: false,
@@ -898,6 +1139,10 @@ function ensureCamera({ rerender = true } = {}) {
       }
     })
     .then((stream) => {
+      cameraDebug("gum", "resolved", {
+        requestId,
+        tracks: stream.getTracks().map(describeMediaTrack)
+      });
       acceptCameraStream(stream, requestId);
     })
     .catch((error) => handleCameraStartFailure(error, requestId))
@@ -923,8 +1168,9 @@ function syncCameraWithView() {
 }
 
 function captureVideoFrame() {
-  const video = document.querySelector("#cameraVideo");
+  const video = currentCameraVideo();
   if (!cameraState.stream || !video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+    cameraDebug("capture", "camera not ready", describeCameraVideo(video));
     setNotice("Camera is not ready yet.");
     return "";
   }
@@ -937,8 +1183,20 @@ function captureVideoFrame() {
   canvas.width = Math.max(1, Math.round(sourceWidth * ratio));
   canvas.height = Math.max(1, Math.round(sourceHeight * ratio));
   const context = canvas.getContext("2d");
+  cameraDebug("capture", "draw frame", {
+    sourceWidth,
+    sourceHeight,
+    canvasWidth: canvas.width,
+    canvasHeight: canvas.height,
+    video: describeCameraVideo(video)
+  });
   context.drawImage(video, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.72);
+  const imageDataUrl = canvas.toDataURL("image/jpeg", 0.72);
+  cameraDebug("capture", "encoded frame", {
+    length: imageDataUrl.length,
+    video: describeCameraVideo(video)
+  });
+  return imageDataUrl;
 }
 
 function formatSeconds(ms) {
@@ -1389,6 +1647,22 @@ function renderLobby() {
   document.querySelector("#leaveGameButton")?.addEventListener("click", leaveGame);
 }
 
+function ensureGameShell() {
+  const screen = app.firstElementChild;
+  if (screen?.classList.contains("game-screen")) return screen;
+
+  app.innerHTML = `
+    <section class="screen game-screen">
+      <video id="cameraVideo" class="game-camera-video" autoplay playsinline muted></video>
+      <div class="game-camera-shade"></div>
+      <div id="urgencyAlert" class="urgency-alert" aria-hidden="true"></div>
+      <div class="game-overlay" id="gameOverlay"></div>
+    </section>
+  `;
+
+  return app.firstElementChild;
+}
+
 function renderGame() {
   const game = state.game;
   const countdown = countdownState(game);
@@ -1398,54 +1672,82 @@ function renderGame() {
   const alertDuration = `${alertFlashDuration(countdownLeft)}s`;
   const cameraMessage = cameraState.error || (cameraState.stream ? "Camera ready" : "Starting camera");
   const cameraDisabled = !isRoundActive || !cameraState.stream || Boolean(cameraState.error) || cameraState.sending;
+  const torchDisabled = !cameraState.stream || !cameraState.torchSupported || cameraState.torchChanging;
+  const torchLabel = cameraState.torchChanging ? "Flash..." : cameraState.torchOn ? "Flash on" : "Flash";
+  const torchTitle = !cameraState.stream
+    ? "Camera is starting"
+    : cameraState.torchSupported
+      ? cameraState.torchOn
+        ? "Turn flashlight off"
+        : "Turn flashlight on"
+      : "Flashlight is not available on this camera";
   const isOwner = game.me?.id === game.ownerPlayerId;
   const exitButtonId = isOwner ? "endGameButton" : "leaveGameButton";
   const exitLabel = isOwner ? "End game" : "Leave game";
-  app.innerHTML = `
-    <section class="screen game-screen">
-      <video id="cameraVideo" class="game-camera-video" autoplay playsinline muted></video>
-      <div class="game-camera-shade"></div>
-      <div class="urgency-alert ${isUrgent ? "is-visible" : ""}" style="--alert-duration:${alertDuration}" aria-hidden="true"></div>
-      <div class="game-overlay">
-        <button class="game-exit-button" id="${exitButtonId}" type="button" aria-label="${exitLabel}" title="${exitLabel}">x</button>
-        <header class="game-hud">
-          <div class="game-hud-top">
-            <span class="game-round-label">${escapeHtml(countdownLabel(game, countdown))}</span>
-            <span class="round-time">${formatSeconds(countdownLeft)}</span>
-          </div>
-          <h1 class="game-target-word">${escapeHtml(countdownTitle(game, countdown))}</h1>
-          ${timerMarkup(countdown, { showChip: false })}
-          <div class="last-chance-warning ${isUrgent ? "is-visible" : ""}" style="--alert-duration:${alertDuration}" aria-live="polite">
-            <span>Last chance</span>
-            <strong class="last-chance-time">${formatSeconds(countdownLeft)}</strong>
-          </div>
-          <div class="game-info-strip">
-            ${countdown?.mode === "break" && game.lastResult?.message ? `<span>${escapeHtml(game.lastResult.message)}</span>` : ""}
-            <span>${escapeHtml(cameraMessage)}</span>
-            <span>${game.players.length}/${game.maxPlayers} players</span>
-            <span>${game.itemQueueCount} backups</span>
-          </div>
-        </header>
+  cameraDebug("render", "game", {
+    roundStatus: game.currentRound?.status || null,
+    countdownMode: countdown?.mode || null,
+    sending: cameraState.sending,
+    camera: describeCameraVideo(),
+    stableShell: app.firstElementChild?.classList.contains("game-screen") || false,
+    notifications: state.notifications.length
+  });
+  const gameScreen = ensureGameShell();
+  const urgencyAlert = gameScreen.querySelector("#urgencyAlert");
+  urgencyAlert.className = `urgency-alert ${isUrgent ? "is-visible" : ""}`;
+  urgencyAlert.style.setProperty("--alert-duration", alertDuration);
 
-        <div class="game-toast-stack" aria-live="polite">
-          ${renderGameNotifications()}
-        </div>
-
-        <footer class="game-bottom-bar">
-          <ul class="game-score-strip" aria-label="Scores">
-            ${gameScorePills(game.players)}
-          </ul>
-          <div class="game-action-row">
-            <button class="primary-button game-shutter-button" id="submitPhotoButton" type="button" ${cameraDisabled ? "disabled" : ""}>
-              ${cameraState.sending ? "Checking..." : "Snap and verify"}
-            </button>
-          </div>
-        </footer>
+  gameScreen.querySelector("#gameOverlay").innerHTML = `
+    <button class="game-exit-button" id="${exitButtonId}" type="button" aria-label="${exitLabel}" title="${exitLabel}">x</button>
+    <header class="game-hud">
+      <div class="game-hud-top">
+        <span class="game-round-label">${escapeHtml(countdownLabel(game, countdown))}</span>
+        <span class="round-time">${formatSeconds(countdownLeft)}</span>
       </div>
-    </section>
+      <h1 class="game-target-word">${escapeHtml(countdownTitle(game, countdown))}</h1>
+      ${timerMarkup(countdown, { showChip: false })}
+      <div class="last-chance-warning ${isUrgent ? "is-visible" : ""}" style="--alert-duration:${alertDuration}" aria-live="polite">
+        <span>Last chance</span>
+        <strong class="last-chance-time">${formatSeconds(countdownLeft)}</strong>
+      </div>
+      <div class="game-info-strip">
+        ${countdown?.mode === "break" && game.lastResult?.message ? `<span>${escapeHtml(game.lastResult.message)}</span>` : ""}
+        <span>${escapeHtml(cameraMessage)}</span>
+        ${cameraState.torchError ? `<span>${escapeHtml(cameraState.torchError)}</span>` : ""}
+        <span>${game.players.length}/${game.maxPlayers} players</span>
+        <span>${game.itemQueueCount} backups</span>
+      </div>
+    </header>
+
+    <div class="game-toast-stack" aria-live="polite">
+      ${renderGameNotifications()}
+    </div>
+
+    <footer class="game-bottom-bar">
+      <ul class="game-score-strip" aria-label="Scores">
+        ${gameScorePills(game.players)}
+      </ul>
+      <div class="game-action-row">
+        <button
+          class="secondary-button game-flash-button ${cameraState.torchOn ? "is-on" : ""}"
+          id="toggleTorchButton"
+          type="button"
+          aria-pressed="${cameraState.torchOn ? "true" : "false"}"
+          title="${escapeHtml(torchTitle)}"
+          ${torchDisabled ? "disabled" : ""}
+        >
+          <span class="flashlight-glyph" aria-hidden="true"></span>
+          <span>${escapeHtml(torchLabel)}</span>
+        </button>
+        <button class="primary-button game-shutter-button" id="submitPhotoButton" type="button" ${cameraDisabled ? "disabled" : ""}>
+          ${cameraState.sending ? "Checking..." : "Snap and verify"}
+        </button>
+      </div>
+    </footer>
   `;
 
   document.querySelector("#submitPhotoButton").addEventListener("click", submitPhoto);
+  document.querySelector("#toggleTorchButton")?.addEventListener("click", toggleTorch);
   document.querySelector("#endGameButton")?.addEventListener("click", endGame);
   document.querySelector("#leaveGameButton")?.addEventListener("click", leaveGame);
   attachCameraStream();
@@ -1499,19 +1801,42 @@ function render() {
 }
 
 async function submitPhoto() {
+  cameraDebug("submit", "start", describeCameraVideo());
+  if (cameraState.sending) return;
   const imageDataUrl = captureVideoFrame();
-  if (!imageDataUrl || cameraState.sending) return;
+  if (!imageDataUrl) return;
 
   cameraState.sending = true;
+  const submitToken = cameraState.submitToken + 1;
+  cameraState.submitToken = submitToken;
+  cameraState.pendingSubmitToken = submitToken;
   state.notice = "";
   pushNotification("Photo sent. Checking...", "info");
 
   const response = await emitAck("submit_capture", {
     gameId: state.game.id,
     imageDataUrl
+  }, {
+    timeoutMs: 45000
+  });
+  cameraDebug("submit", "ack", {
+    ok: response.ok,
+    error: response.error || "",
+    submitToken,
+    pendingSubmitToken: cameraState.pendingSubmitToken,
+    sending: cameraState.sending,
+    camera: describeCameraVideo()
   });
   if (!response.ok) {
-    cameraState.sending = false;
+    if (!cameraState.sending || cameraState.pendingSubmitToken !== submitToken) {
+      cameraDebug("submit", "ignore stale ack error", {
+        error: response.error || "",
+        submitToken,
+        pendingSubmitToken: cameraState.pendingSubmitToken
+      });
+      return;
+    }
+    clearPendingSubmit();
     showMessage(response.error, "danger");
     return;
   }
@@ -1540,6 +1865,12 @@ socket.on("disconnect", () => {
 });
 
 socket.on("game_state", (game) => {
+  cameraDebug("socket", "game_state", {
+    status: game.status,
+    roundStatus: game.currentRound?.status || null,
+    lastResult: game.lastResult?.status || null,
+    camera: describeCameraVideo()
+  });
   state.game = game;
   state.playerId = game.me?.id || state.playerId;
   saveSession();
@@ -1547,20 +1878,32 @@ socket.on("game_state", (game) => {
 });
 
 socket.on("round_started", ({ item }) => {
-  cameraState.sending = false;
+  cameraDebug("socket", "round_started", {
+    item,
+    camera: describeCameraVideo()
+  });
+  clearPendingSubmit();
   state.notice = "";
   pushNotification(`Find ${item}.`, "target");
 });
 
 socket.on("round_result", (result) => {
-  cameraState.sending = false;
+  cameraDebug("socket", "round_result", {
+    result,
+    camera: describeCameraVideo()
+  });
+  clearPendingSubmit();
   state.notice = "";
   pushNotification(result.message, result.status);
 });
 
 socket.on("submission_result", (result) => {
+  cameraDebug("socket", "submission_result", {
+    result,
+    camera: describeCameraVideo()
+  });
   if (result.status !== "checking") {
-    cameraState.sending = false;
+    clearPendingSubmit();
   }
   if (result.status === "checking") {
     pushNotification(result.message, "info");
@@ -1572,15 +1915,19 @@ socket.on("submission_result", (result) => {
 });
 
 socket.on("capture_notice", (result) => {
+  cameraDebug("socket", "capture_notice", {
+    result,
+    camera: describeCameraVideo()
+  });
   if (result.playerId === state.playerId) {
-    cameraState.sending = false;
+    clearPendingSubmit();
   }
   state.notice = "";
   pushNotification(result.message, result.status);
 });
 
 socket.on("game_ended", ({ winner, message }) => {
-  cameraState.sending = false;
+  clearPendingSubmit();
   state.notice = message || (winner ? `${winner.username} wins.` : "Game ended.");
   playGameEndedSound(state.game?.id || "");
   render();
