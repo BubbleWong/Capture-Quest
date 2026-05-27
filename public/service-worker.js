@@ -6,6 +6,9 @@ const staticAssets = [
   "/index.html",
   versionedAsset("/styles.css"),
   versionedAsset("/scripts/app.js"),
+  versionedAsset("/assets/audio/countdown-fast-fight-looped.mp3"),
+  versionedAsset("/assets/audio/ingame-booxbep-chiptune.mp3"),
+  versionedAsset("/assets/audio/lobby-flowerbed-fields.mp3"),
   versionedAsset("/assets/quest-camera.svg"),
   versionedAsset("/manifest.webmanifest")
 ];

@@ -25,6 +25,7 @@ const defaults = {
   openRouter: {
     apiKey: "",
     model: "openai/gpt-5.4-mini",
+    visionModel: "google/gemini-3.1-flash-lite-preview",
     baseUrl: "https://openrouter.ai/api/v1",
     appTitle: "Capture Quest",
     referer: "",
@@ -84,6 +85,7 @@ function applyEnv(config) {
     openRouter: {
       apiKey: process.env.OPENROUTER_API_KEY || config.openRouter.apiKey,
       model: process.env.OPENROUTER_MODEL || config.openRouter.model,
+      visionModel: process.env.OPENROUTER_VISION_MODEL || config.openRouter.visionModel,
       baseUrl: process.env.OPENROUTER_BASE_URL || config.openRouter.baseUrl,
       appTitle: process.env.OPENROUTER_APP_TITLE || config.openRouter.appTitle,
       referer: process.env.OPENROUTER_REFERER || config.openRouter.referer,

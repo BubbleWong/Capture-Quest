@@ -262,6 +262,12 @@ button:disabled {
   width: 100%;
 }
 
+.word-list-input {
+  line-height: 1.35;
+  min-height: 120px;
+  resize: vertical;
+}
+
 .game-id-field {
   gap: 8px;
 }

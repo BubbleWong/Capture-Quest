@@ -68,6 +68,8 @@ const cameraState = {
 const cameraRequestTimeoutMs = 12000;
 const cameraRetryDelayMs = 3000;
 const cameraPermissionCheckMs = 5000;
+const captureMaxSide = 960;
+const captureJpegQuality = 0.62;
 
 function describeCameraError(error) {
   return error
@@ -145,7 +147,27 @@ const soundState = {
   context: null,
   unlocked: false,
   countdownTickKey: "",
-  lastEndSoundGameId: ""
+  lastEndSoundGameId: "",
+  musicBuffers: {},
+  musicLoading: {},
+  musicSource: null,
+  musicGain: null,
+  musicMode: ""
+};
+
+const backgroundMusicTracks = {
+  lobby: {
+    path: "/assets/audio/lobby-flowerbed-fields.mp3",
+    volume: 0.18
+  },
+  game: {
+    path: "/assets/audio/ingame-booxbep-chiptune.mp3",
+    volume: 0.2
+  },
+  urgent: {
+    path: "/assets/audio/countdown-fast-fight-looped.mp3",
+    volume: 0.26
+  }
 };
 
 function createAudioContext() {
@@ -282,6 +304,102 @@ function playGameEndedSound(gameId = "") {
   ]);
 }
 
+function loadBackgroundMusic(mode) {
+  const track = backgroundMusicTracks[mode];
+  const context = createAudioContext();
+  if (!track || !context) return Promise.resolve(null);
+  if (soundState.musicBuffers[mode]) return Promise.resolve(soundState.musicBuffers[mode]);
+  if (soundState.musicLoading[mode]) return soundState.musicLoading[mode];
+
+  soundState.musicLoading[mode] = fetch(assetUrl(track.path))
+    .then((response) => {
+      if (!response.ok) throw new Error(`Music failed to load: ${track.path}`);
+      return response.arrayBuffer();
+    })
+    .then((data) => context.decodeAudioData(data))
+    .then((buffer) => {
+      soundState.musicBuffers[mode] = buffer;
+      return buffer;
+    })
+    .catch(() => null)
+    .finally(() => {
+      delete soundState.musicLoading[mode];
+    });
+
+  return soundState.musicLoading[mode];
+}
+
+function preloadBackgroundMusic() {
+  for (const mode of Object.keys(backgroundMusicTracks)) {
+    loadBackgroundMusic(mode);
+  }
+}
+
+function stopBackgroundMusic() {
+  if (soundState.musicSource) {
+    try {
+      soundState.musicSource.stop();
+    } catch {
+      // The source may already have stopped during a mode change.
+    }
+    soundState.musicSource.disconnect();
+  }
+  if (soundState.musicGain) {
+    soundState.musicGain.disconnect();
+  }
+  soundState.musicSource = null;
+  soundState.musicGain = null;
+  soundState.musicMode = "";
+}
+
+function backgroundMusicMode() {
+  const countdown = countdownState(state.game);
+  if (state.view === "lobby") return "lobby";
+  if (state.view === "game") {
+    if (countdown?.mode === "round" && countdown.left > 0 && countdown.left <= 10000) return "urgent";
+    return "game";
+  }
+  return "";
+}
+
+function startBackgroundMusic(mode) {
+  if (!mode || !canPlaySound() || document.hidden) return;
+  if (soundState.musicMode === mode && soundState.musicSource) return;
+  if (soundState.musicMode && soundState.musicMode !== mode) stopBackgroundMusic();
+
+  const buffer = soundState.musicBuffers[mode];
+  if (!buffer) {
+    loadBackgroundMusic(mode).then(() => {
+      if (backgroundMusicMode() === mode) startBackgroundMusic(mode);
+    });
+    return;
+  }
+
+  stopBackgroundMusic();
+  const context = soundState.context;
+  const track = backgroundMusicTracks[mode];
+  const source = context.createBufferSource();
+  const gain = context.createGain();
+  source.buffer = buffer;
+  source.loop = true;
+  gain.gain.setValueAtTime(track.volume, context.currentTime);
+  source.connect(gain);
+  gain.connect(context.destination);
+  source.start();
+  soundState.musicSource = source;
+  soundState.musicGain = gain;
+  soundState.musicMode = mode;
+}
+
+function syncBackgroundMusic() {
+  const mode = backgroundMusicMode();
+  if (!mode || !soundState.unlocked || document.hidden) {
+    stopBackgroundMusic();
+    return;
+  }
+  startBackgroundMusic(mode);
+}
+
 function preventZoomGesture(event) {
   event.preventDefault();
 }
@@ -337,6 +455,31 @@ function saveLastUsername(username) {
   } catch {
     // Local storage can be unavailable in private or restricted browsing modes.
   }
+}
+
+function parseInitialWordList(value) {
+  const seen = new Set();
+  return String(value || "")
+    .split(/[\r\n,;]+/)
+    .map((item) => item.trim().toLowerCase().replace(/\s+/g, " "))
+    .filter((item) => item.length > 1)
+    .filter((item) => {
+      if (seen.has(item)) return false;
+      seen.add(item);
+      return true;
+    })
+    .slice(0, 100);
+}
+
+function imagePayloadInfo(imageDataUrl) {
+  const separatorIndex = imageDataUrl.indexOf(",");
+  const base64Length = separatorIndex >= 0 ? imageDataUrl.length - separatorIndex - 1 : imageDataUrl.length;
+  const estimatedBytes = Math.ceil((base64Length * 3) / 4);
+  return {
+    dataUrlLength: imageDataUrl.length,
+    estimatedBytes,
+    estimatedKilobytes: Math.round(estimatedBytes / 1024)
+  };
 }
 
 function emitAck(event, payload, { timeoutMs = 20000 } = {}) {
@@ -477,7 +620,8 @@ async function createGame(formData) {
   saveLastUsername(formData.get("ownerName"));
   ensureCamera({ rerender: false });
   const response = await emitAck("create_game", {
-    username: formData.get("ownerName")
+    username: formData.get("ownerName"),
+    initialItems: parseInitialWordList(formData.get("initialWords"))
   });
   if (setJoinData(response)) {
     state.view = "lobby";
@@ -1177,8 +1321,7 @@ function captureVideoFrame() {
 
   const sourceWidth = video.videoWidth || 1280;
   const sourceHeight = video.videoHeight || 720;
-  const maxSide = 1280;
-  const ratio = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
+  const ratio = Math.min(1, captureMaxSide / Math.max(sourceWidth, sourceHeight));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(sourceWidth * ratio));
   canvas.height = Math.max(1, Math.round(sourceHeight * ratio));
@@ -1191,9 +1334,11 @@ function captureVideoFrame() {
     video: describeCameraVideo(video)
   });
   context.drawImage(video, 0, 0, canvas.width, canvas.height);
-  const imageDataUrl = canvas.toDataURL("image/jpeg", 0.72);
+  const imageDataUrl = canvas.toDataURL("image/jpeg", captureJpegQuality);
   cameraDebug("capture", "encoded frame", {
-    length: imageDataUrl.length,
+    ...imagePayloadInfo(imageDataUrl),
+    maxSide: captureMaxSide,
+    quality: captureJpegQuality,
     video: describeCameraVideo(video)
   });
   return imageDataUrl;
@@ -1294,6 +1439,7 @@ function updateCountdownDisplays() {
     if (time) time.textContent = formatSeconds(left);
   }
   playCountdownTick(countdown, left, isUrgent);
+  syncBackgroundMusic();
 }
 
 function playerRows(players) {
@@ -1501,6 +1647,10 @@ function renderCreate() {
           <label class="field">
             <span>Your name</span>
             <input class="text-input" name="ownerName" autocomplete="nickname" maxlength="24" required placeholder="Game owner" value="${username}" autofocus>
+          </label>
+          <label class="field">
+            <span>Initial objects</span>
+            <textarea class="text-input word-list-input" name="initialWords" autocomplete="off" autocapitalize="none" spellcheck="false" rows="5" placeholder="pencil, backpack&#10;blue shoes; notebook"></textarea>
           </label>
           <button class="primary-button" type="submit">Create game</button>
           <button class="secondary-button" id="backToChoiceButton" type="button">Back</button>
@@ -1798,13 +1948,20 @@ function render() {
   }
 
   syncCameraWithView();
+  syncBackgroundMusic();
 }
 
 async function submitPhoto() {
   cameraDebug("submit", "start", describeCameraVideo());
   if (cameraState.sending) return;
+  const challengeId = state.game?.currentRound?.id || "";
+  if (!challengeId) {
+    showMessage("That challenge has already moved on.", "warning");
+    return;
+  }
   const imageDataUrl = captureVideoFrame();
   if (!imageDataUrl) return;
+  const imageSize = imagePayloadInfo(imageDataUrl);
 
   cameraState.sending = true;
   const submitToken = cameraState.submitToken + 1;
@@ -1815,18 +1972,27 @@ async function submitPhoto() {
 
   const response = await emitAck("submit_capture", {
     gameId: state.game.id,
+    challengeId,
     imageDataUrl
   }, {
     timeoutMs: 45000
   });
   cameraDebug("submit", "ack", {
     ok: response.ok,
+    ignored: response.ignored || false,
     error: response.error || "",
     submitToken,
+    challengeId,
+    imageSize,
     pendingSubmitToken: cameraState.pendingSubmitToken,
     sending: cameraState.sending,
     camera: describeCameraVideo()
   });
+  if (response.ignored) {
+    clearPendingSubmit();
+    render();
+    return;
+  }
   if (!response.ok) {
     if (!cameraState.sending || cameraState.pendingSubmitToken !== submitToken) {
       cameraDebug("submit", "ignore stale ack error", {
@@ -1877,8 +2043,9 @@ socket.on("game_state", (game) => {
   render();
 });
 
-socket.on("round_started", ({ item }) => {
+socket.on("round_started", ({ item, challengeId }) => {
   cameraDebug("socket", "round_started", {
+    challengeId,
     item,
     camera: describeCameraVideo()
   });
@@ -1947,7 +2114,11 @@ closeLeaderboardButton.addEventListener("click", () => leaderboardDialog.close()
 document.addEventListener(
   "pointerdown",
   () => {
-    unlockAudio();
+    unlockAudio().then((unlocked) => {
+      if (!unlocked) return;
+      preloadBackgroundMusic();
+      syncBackgroundMusic();
+    });
   },
   { once: true, capture: true }
 );
@@ -1974,6 +2145,7 @@ document.addEventListener("keydown", preventZoomShortcut);
 document.addEventListener("touchend", preventDoubleTapZoom, { passive: false });
 
 document.addEventListener("visibilitychange", () => {
+  syncBackgroundMusic();
   if (!document.hidden && isCameraExpected()) {
     resetCameraHealth();
     attachCameraStream();

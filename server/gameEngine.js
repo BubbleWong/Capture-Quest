@@ -64,6 +64,24 @@ function cleanChallengeItem(item) {
     .slice(0, 48);
 }
 
+function parseChallengeList(value) {
+  const entries = Array.isArray(value)
+    ? value.flatMap((item) => String(item || "").split(/[\r\n,;]+/))
+    : String(value || "").split(/[\r\n,;]+/);
+  const seen = new Set();
+
+  return entries
+    .map(cleanChallengeItem)
+    .filter((item) => item.length > 1)
+    .filter((item) => {
+      const key = challengeKey(item);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 100);
+}
+
 function normalizeChallengeWord(word) {
   if (word.length > 4 && word.endsWith("ies")) return `${word.slice(0, -3)}y`;
   if (word.length > 4 && /(ches|shes|sses|xes|zes)$/.test(word)) return word.slice(0, -2);
@@ -107,12 +125,13 @@ export class GameEngine {
     this.detachSocket(socket);
     const gameId = createGameId(this.games);
     const player = this.createPlayer(socket, payload.username || "Host", true);
+    const initialItems = parseChallengeList(payload.initialWordList || payload.initialItems);
     const game = {
       id: gameId,
       status: "lobby",
       ownerPlayerId: player.id,
       players: new Map([[player.id, player]]),
-      itemQueue: [],
+      itemQueue: initialItems,
       usedItems: [],
       roundNumber: 0,
       roundsAwarded: 0,
@@ -280,14 +299,16 @@ export class GameEngine {
     if (!session) return { error: "You are not in this game." };
     const { game, player } = session;
     const round = game.currentRound;
-    if (game.status !== "running" || !round || round.status !== "active") {
-      return { error: "There is no active object right now." };
+    const challengeId = String(payload.challengeId || "").trim();
+    if (game.status !== "running" || !round || round.status !== "active" || round.id !== challengeId) {
+      return { ok: true, ignored: true };
     }
     if (!payload.imageDataUrl || !String(payload.imageDataUrl).startsWith("data:image/")) {
       return { error: "Photo data was not received." };
     }
 
     round.submissions.push({
+      challengeId,
       playerId: player.id,
       imageDataUrl: payload.imageDataUrl,
       receivedAt: Date.now()
@@ -523,6 +544,7 @@ export class GameEngine {
     game.lastResult = null;
 
     this.io.to(game.id).emit("round_started", {
+      challengeId: game.currentRound.id,
       item,
       roundNumber: game.roundNumber,
       expiresAt: game.currentRound.expiresAt
@@ -545,10 +567,12 @@ export class GameEngine {
   async processSubmissions(game) {
     const round = game.currentRound;
     if (!round || round.processing || round.status !== "active") return;
+    const roundId = round.id;
     round.processing = true;
 
     while (round.submissions.length > 0 && round.status === "active") {
       const submission = round.submissions.shift();
+      if (submission.challengeId !== roundId) continue;
       const player = game.players.get(submission.playerId);
       if (!player || !player.connected) continue;
 
@@ -557,7 +581,7 @@ export class GameEngine {
         imageDataUrl: submission.imageDataUrl
       });
 
-      if (round.status !== "active") break;
+      if (game.currentRound?.id !== roundId || round.status !== "active") break;
 
       if (result.match) {
         await this.awardPoint(game, player, result);

@@ -19,6 +19,7 @@ export default {
   openRouter: {
     apiKey: "",
     model: "openai/gpt-5.4-mini",
+    visionModel: "google/gemini-3.1-flash-lite-preview",
     baseUrl: "https://openrouter.ai/api/v1",
     appTitle: "Capture Quest",
     referer: "http://localhost:3000",

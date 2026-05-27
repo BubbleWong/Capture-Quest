@@ -27,6 +27,9 @@ const versionedFiles = [
   "service-worker.js",
   "styles.css",
   "scripts/app.js",
+  "assets/audio/countdown-fast-fight-looped.mp3",
+  "assets/audio/ingame-booxbep-chiptune.mp3",
+  "assets/audio/lobby-flowerbed-fields.mp3",
   "assets/quest-camera.svg"
 ];
 const indexTemplate = fs.readFileSync(path.join(publicDir, "index.html"), "utf8");
@@ -195,7 +198,7 @@ io.on("connection", (socket) => {
 
   socket.on("submit_capture", (payload, callback) => {
     const result = engine.submitCapture(socket, payload);
-    ack(callback, result.error ? { ok: false, error: result.error } : { ok: true });
+    ack(callback, result.error ? { ok: false, error: result.error } : { ok: true, ignored: Boolean(result.ignored) });
   });
 
   socket.on("disconnect", () => {

@@ -27,6 +27,7 @@ Open `http://localhost:3000`.
 - `POSTGRES_DATABASE`
 - `OPENROUTER_API_KEY`
 - `OPENROUTER_MODEL`
+- `OPENROUTER_VISION_MODEL`
 - `PUBLIC_BASE_URL`
 - `CLOUDFLARE_TUNNEL_ENABLED`
 - `CLOUDFLARE_TUNNEL_TOKEN`
@@ -36,10 +37,18 @@ Open `http://localhost:3000`.
 
 If Postgres is unavailable, completed scores are kept in memory for the current server run. If `OPENROUTER_API_KEY` is missing and `mockWhenMissingKey` is enabled, local development accepts submitted photos so the gameplay loop can be tested.
 
-The default OpenRouter model is `openai/gpt-5.4-mini`; override it with `openRouter.model` in `config.js` or `OPENROUTER_MODEL`.
+The default OpenRouter model is `openai/gpt-5.4-mini`; override it with `openRouter.model` in `config.js` or `OPENROUTER_MODEL`. Photo verification uses `google/gemini-3.1-flash-lite-preview` by default; override it with `openRouter.visionModel` or `OPENROUTER_VISION_MODEL`.
 
 ## HTTPS Phone Testing
 
 Camera access on phones requires HTTPS. To expose the local server through Cloudflare Tunnel, install `cloudflared`, then set `cloudflare.enabled`, `cloudflare.token`, and `cloudflare.domain` in `config.js`. When the Node server starts, it starts the tunnel after the HTTP listener is ready and stops the tunnel during server shutdown.
 
 Set `publicBaseUrl` to the HTTPS domain so generated game links and QR codes use the tunnel URL.
+
+## Music Credits
+
+Bundled BGM files are converted to MP3 for browser compatibility. Source tracks:
+
+- Lobby: [Flowerbed Fields [Loop]](https://opengameart.org/content/flowerbed-fields-loop) by Zane Little Music, CC0.
+- In-game: [BooxBep Chiptune](https://opengameart.org/content/booxbep-chiptune) by Fupi, CC0.
+- Last 10 seconds: [Fast fight / battle music (looped)](https://opengameart.org/content/fast-fight-battle-music-looped) by XCVG, based on work by Ville Nousiainen, CC0.

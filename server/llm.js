@@ -137,6 +137,12 @@ export function createLlm(config, logger = console) {
   const hasKey = Boolean(openRouter.apiKey);
 
   async function chat(messages, options = {}) {
+    const body = {
+      model: options.model || openRouter.model,
+      messages,
+      temperature: options.temperature ?? 0.7,
+      response_format: { type: "json_object" }
+    };
     const response = await fetch(`${openRouter.baseUrl.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
       headers: {
@@ -145,12 +151,7 @@ export function createLlm(config, logger = console) {
         "HTTP-Referer": openRouter.referer || config.publicBaseUrl || "http://localhost",
         "X-Title": openRouter.appTitle || "Capture Quest"
       },
-      body: JSON.stringify({
-        model: openRouter.model,
-        messages,
-        temperature: options.temperature ?? 0.7,
-        response_format: { type: "json_object" }
-      })
+      body: JSON.stringify(body)
     });
 
     if (!response.ok) {
@@ -240,7 +241,10 @@ export function createLlm(config, logger = console) {
               ]
             }
           ],
-          { temperature: 0.1 }
+          {
+            temperature: 0.1,
+            model: openRouter.visionModel || openRouter.model
+          }
         );
         const parsed = tryParseJson(content);
         return {
