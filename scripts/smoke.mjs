@@ -69,8 +69,26 @@ try {
   assert.equal(activeRound.status, "running");
   assert.equal(typeof activeRound.currentRound.item, "string");
 
+  const paused = await emitAck(socket, "pause_game", { gameId: created.gameId });
+  assert.equal(paused.ok, true);
+  const pausedState = await waitForState(states, (state) => state.status === "paused");
+  assert.equal(pausedState.currentRound.id, activeRound.currentRound.id);
+
+  const ignoredWhilePaused = await emitAck(socket, "submit_capture", {
+    gameId: created.gameId,
+    challengeId: activeRound.currentRound.id,
+    imageDataUrl: tinyPng
+  });
+  assert.equal(ignoredWhilePaused.ok, true);
+  assert.equal(ignoredWhilePaused.ignored, true);
+
+  const resumed = await emitAck(socket, "resume_game", { gameId: created.gameId });
+  assert.equal(resumed.ok, true);
+  const resumedState = await waitForState(states, (state) => state.status === "running");
+
   const submitted = await emitAck(socket, "submit_capture", {
     gameId: created.gameId,
+    challengeId: resumedState.currentRound.id,
     imageDataUrl: tinyPng
   });
   assert.equal(submitted.ok, true);

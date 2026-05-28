@@ -128,6 +128,23 @@ function shuffledFallback(count, previousItems = [], queuedItems = []) {
   return items.slice(0, count);
 }
 
+function parseCandidateList(value) {
+  return String(value || "")
+    .split(/[\r\n,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function fallbackInitialItems(input, count, previousItems = [], queuedItems = []) {
+  const parsedItems = uniqueCleanItems(parseCandidateList(input), [...previousItems, ...queuedItems]);
+  const hasListDelimiter = /[\r\n,;]/.test(String(input || ""));
+  const singleItemWordCount = parsedItems.length === 1 ? parsedItems[0].split(/\s+/).length : 0;
+  if (parsedItems.length > 1 || hasListDelimiter || (parsedItems.length === 1 && singleItemWordCount <= 3)) {
+    return parsedItems.slice(0, count);
+  }
+  return shuffledFallback(count, previousItems, queuedItems);
+}
+
 function itemList(items) {
   return items.length ? items.join(", ") : "none";
 }
@@ -164,6 +181,43 @@ export function createLlm(config, logger = console) {
   }
 
   return {
+    async prepareInitialItems({ input = "", count = 20, previousItems = [], queuedItems = [] } = {}) {
+      const seedText = String(input || "").trim().slice(0, 1600);
+      if (!seedText) return [];
+      const excludedItems = uniqueCleanItems([...previousItems, ...queuedItems]);
+      if (!hasKey) return fallbackInitialItems(seedText, count, previousItems, queuedItems);
+
+      try {
+        const [systemPrompt, seedPrompt] = await Promise.all([
+          readPrompt("system_prompt.md"),
+          readPrompt("seed_items.md")
+        ]);
+        const content = await chat(
+          [
+            { role: "system", content: systemPrompt },
+            {
+              role: "user",
+              content: [
+                seedPrompt,
+                `Return up to ${count} items.`,
+                `Already presented challenges for this group: ${itemList(previousItems)}.`,
+                `Already queued challenges for this group: ${itemList(queuedItems)}.`,
+                "Player seed text:",
+                seedText
+              ].join("\n\n")
+            }
+          ],
+          { temperature: 0.45 }
+        );
+        const parsed = tryParseJson(content);
+        const items = uniqueCleanItems(parsed?.items, excludedItems);
+        return items.length > 0 ? items.slice(0, count) : fallbackInitialItems(seedText, count, previousItems, queuedItems);
+      } catch (error) {
+        logger.warn(`Initial item preparation failed (${error.message}). Using local fallback items.`);
+        return fallbackInitialItems(seedText, count, previousItems, queuedItems);
+      }
+    },
+
     async generateItems({ count = 20, previousItems = [], queuedItems = [] } = {}) {
       const excludedItems = uniqueCleanItems([...previousItems, ...queuedItems]);
       if (!hasKey) return shuffledFallback(count, previousItems, queuedItems);

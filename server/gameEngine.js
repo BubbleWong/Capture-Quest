@@ -82,6 +82,13 @@ function parseChallengeList(value) {
     .slice(0, 100);
 }
 
+function cleanInitialChallengeInput(value) {
+  return String(value || "")
+    .replace(/\0/g, "")
+    .trim()
+    .slice(0, 1600);
+}
+
 function normalizeChallengeWord(word) {
   if (word.length > 4 && word.endsWith("ies")) return `${word.slice(0, -3)}y`;
   if (word.length > 4 && /(ches|shes|sses|xes|zes)$/.test(word)) return word.slice(0, -2);
@@ -125,13 +132,17 @@ export class GameEngine {
     this.detachSocket(socket);
     const gameId = createGameId(this.games);
     const player = this.createPlayer(socket, payload.username || "Host", true);
-    const initialItems = parseChallengeList(payload.initialWordList || payload.initialItems);
+    const initialChallengeInput = cleanInitialChallengeInput(
+      payload.initialChallengeInput || payload.initialPrompt || payload.initialWordList || payload.initialItems
+    );
     const game = {
       id: gameId,
       status: "lobby",
       ownerPlayerId: player.id,
       players: new Map([[player.id, player]]),
-      itemQueue: initialItems,
+      itemQueue: [],
+      initialChallengeInput,
+      initialChallengePrepared: false,
       usedItems: [],
       roundNumber: 0,
       roundsAwarded: 0,
@@ -145,6 +156,7 @@ export class GameEngine {
       nextRoundTimer: null,
       nextRoundAt: null,
       nextRoundStartedAt: null,
+      pauseState: null,
       loadingItems: null
     };
     this.games.set(gameId, game);
@@ -220,6 +232,7 @@ export class GameEngine {
     game.endedAt = null;
     game.winner = null;
     this.emitState(game);
+    await this.prepareInitialChallengeQueue(game);
     await this.ensureItemBuffer(game, this.config.game.itemBatchSize);
     this.startRound(game);
     return { game, player };
@@ -245,9 +258,87 @@ export class GameEngine {
     game.winner = null;
     game.nextRoundAt = null;
     game.nextRoundStartedAt = null;
+    game.pauseState = null;
     game.endedAt = null;
     game.startedAt = null;
     game.itemQueue = [];
+    game.initialChallengeInput = "";
+    game.initialChallengePrepared = true;
+    this.emitState(game);
+    return { game, player };
+  }
+
+  pauseGameByOwner(socket, payload = {}) {
+    const session = this.getSession(socket, payload.gameId);
+    if (!session) return { error: "You are not in this game." };
+    const { game, player } = session;
+    if (game.ownerPlayerId !== player.id) return { error: "Only the game owner can pause the game." };
+    if (game.status === "paused") return { game, player };
+    if (game.status !== "running") return { error: "Only a running game can be paused." };
+
+    const now = Date.now();
+    const pauseState = {
+      mode: "idle",
+      pausedAt: now,
+      remainingMs: 0
+    };
+
+    if (game.currentRound?.status === "active") {
+      pauseState.mode = "round";
+      pauseState.remainingMs = Math.max(1, game.currentRound.expiresAt - now);
+      this.clearRoundTimer(game);
+    } else if (game.nextRoundAt) {
+      pauseState.mode = "break";
+      pauseState.remainingMs = Math.max(1, game.nextRoundAt - now);
+      this.clearNextRoundTimer(game);
+    }
+
+    game.status = "paused";
+    game.pauseState = pauseState;
+    this.emitNotice(game, "Game paused.");
+    this.emitState(game);
+    return { game, player };
+  }
+
+  resumeGameByOwner(socket, payload = {}) {
+    const session = this.getSession(socket, payload.gameId);
+    if (!session) return { error: "You are not in this game." };
+    const { game, player } = session;
+    if (game.ownerPlayerId !== player.id) return { error: "Only the game owner can resume the game." };
+    if (game.status !== "paused") return { error: "The game is not paused." };
+
+    const pauseState = game.pauseState || {};
+    const now = Date.now();
+    game.status = "running";
+    game.pauseState = null;
+
+    if (pauseState.mode === "round" && game.currentRound?.status === "active") {
+      const remainingMs = Math.max(1000, pauseState.remainingMs || this.config.game.objectTimeoutMs);
+      const elapsedMs = Math.max(0, this.config.game.objectTimeoutMs - remainingMs);
+      game.currentRound.startedAt = now - elapsedMs;
+      game.currentRound.expiresAt = now + remainingMs;
+      this.clearRoundTimer(game);
+      game.roundTimer = setTimeout(() => {
+        this.expireRound(game.id, game.currentRound?.id).catch((error) => {
+          this.logger.warn(`Round timeout failed: ${error.message}`);
+        });
+      }, remainingMs);
+    } else if (pauseState.mode === "break") {
+      const remainingMs = Math.max(1000, pauseState.remainingMs || this.config.game.nextRoundDelayMs);
+      this.clearNextRoundTimer(game);
+      game.nextRoundStartedAt = now;
+      game.nextRoundAt = now + remainingMs;
+      game.nextRoundTimer = setTimeout(() => {
+        game.nextRoundTimer = null;
+        game.nextRoundAt = null;
+        game.nextRoundStartedAt = null;
+        this.startRound(game).catch((error) => {
+          this.logger.warn(`Next round failed: ${error.message}`);
+        });
+      }, remainingMs);
+    }
+
+    this.emitNotice(game, "Game resumed.");
     this.emitState(game);
     return { game, player };
   }
@@ -356,6 +447,12 @@ export class GameEngine {
       itemQueueCount: game.itemQueue.length,
       nextRoundAt: game.nextRoundAt,
       nextRoundStartedAt: game.nextRoundStartedAt,
+      pauseState: game.pauseState
+        ? {
+            mode: game.pauseState.mode,
+            pausedAt: game.pauseState.pausedAt
+          }
+        : null,
       currentRound: game.currentRound
         ? {
             id: game.currentRound.id,
@@ -420,6 +517,32 @@ export class GameEngine {
   allConnectedPlayersReady(game) {
     const connectedPlayers = [...game.players.values()].filter((player) => player.connected);
     return connectedPlayers.length > 0 && connectedPlayers.every((player) => player.ready);
+  }
+
+  async prepareInitialChallengeQueue(game) {
+    if (game.initialChallengePrepared) return;
+    game.initialChallengePrepared = true;
+    const input = cleanInitialChallengeInput(game.initialChallengeInput);
+    if (!input) return;
+
+    try {
+      const items = await this.llm.prepareInitialItems({
+        input,
+        count: this.config.game.itemBatchSize,
+        previousItems: [...game.usedItems],
+        queuedItems: [...game.itemQueue]
+      });
+      const nextItems = this.filterNewChallengeItems(game, items);
+      if (nextItems.length > 0) {
+        game.itemQueue.push(...nextItems);
+        return;
+      }
+    } catch (error) {
+      this.logger.warn(`Initial challenge preparation failed: ${error.message}`);
+    }
+
+    const fallbackItems = this.filterNewChallengeItems(game, parseChallengeList(input));
+    game.itemQueue.push(...fallbackItems);
   }
 
   async ensureItemBuffer(game, minimumCount) {
@@ -570,7 +693,7 @@ export class GameEngine {
     const roundId = round.id;
     round.processing = true;
 
-    while (round.submissions.length > 0 && round.status === "active") {
+    while (round.submissions.length > 0 && round.status === "active" && game.status === "running") {
       const submission = round.submissions.shift();
       if (submission.challengeId !== roundId) continue;
       const player = game.players.get(submission.playerId);
@@ -581,7 +704,7 @@ export class GameEngine {
         imageDataUrl: submission.imageDataUrl
       });
 
-      if (game.currentRound?.id !== roundId || round.status !== "active") break;
+      if (game.status !== "running" || game.currentRound?.id !== roundId || round.status !== "active") break;
 
       if (result.match) {
         await this.awardPoint(game, player, result);
@@ -678,6 +801,7 @@ export class GameEngine {
     game.status = "ended";
     game.endedAt = Date.now();
     game.currentRound = null;
+    game.pauseState = null;
     const leaders = topPlayers([...game.players.values()]);
     game.winner = options.forced ? null : leaders[0] || null;
     game.lastResult = {

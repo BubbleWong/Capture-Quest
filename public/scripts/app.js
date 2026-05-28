@@ -4,6 +4,9 @@ const leaderboardDialog = document.querySelector("#leaderboardDialog");
 const leaderboardContent = document.querySelector("#leaderboardContent");
 const leaderboardButton = document.querySelector("#leaderboardButton");
 const closeLeaderboardButton = document.querySelector("#closeLeaderboardButton");
+const gameMenuDialog = document.querySelector("#gameMenuDialog");
+const gameMenuContent = document.querySelector("#gameMenuContent");
+const closeGameMenuButton = document.querySelector("#closeGameMenuButton");
 
 const socket = io();
 const query = new URLSearchParams(window.location.search);
@@ -329,10 +332,12 @@ function loadBackgroundMusic(mode) {
   return soundState.musicLoading[mode];
 }
 
-function preloadBackgroundMusic() {
-  for (const mode of Object.keys(backgroundMusicTracks)) {
-    loadBackgroundMusic(mode);
-  }
+function preloadBackgroundMusic(exceptMode = "") {
+  window.setTimeout(() => {
+    for (const mode of Object.keys(backgroundMusicTracks)) {
+      if (mode !== exceptMode) loadBackgroundMusic(mode);
+    }
+  }, 1200);
 }
 
 function stopBackgroundMusic() {
@@ -455,20 +460,6 @@ function saveLastUsername(username) {
   } catch {
     // Local storage can be unavailable in private or restricted browsing modes.
   }
-}
-
-function parseInitialWordList(value) {
-  const seen = new Set();
-  return String(value || "")
-    .split(/[\r\n,;]+/)
-    .map((item) => item.trim().toLowerCase().replace(/\s+/g, " "))
-    .filter((item) => item.length > 1)
-    .filter((item) => {
-      if (seen.has(item)) return false;
-      seen.add(item);
-      return true;
-    })
-    .slice(0, 100);
 }
 
 function imagePayloadInfo(imageDataUrl) {
@@ -621,7 +612,7 @@ async function createGame(formData) {
   ensureCamera({ rerender: false });
   const response = await emitAck("create_game", {
     username: formData.get("ownerName"),
-    initialItems: parseInitialWordList(formData.get("initialWords"))
+    initialChallengeInput: String(formData.get("initialChallengeInput") || "").trim()
   });
   if (setJoinData(response)) {
     state.view = "lobby";
@@ -704,17 +695,98 @@ async function restartGame() {
   if (!response.ok) setNotice(response.error);
 }
 
-function confirmGameExit(message) {
-  return window.confirm(message);
+function closeGameMenu() {
+  if (gameMenuDialog.open) gameMenuDialog.close();
+}
+
+function renderGameMenu() {
+  if (!state.game) {
+    gameMenuContent.innerHTML = `<p class="empty-state">Join or create a game to use game options.</p>`;
+    return;
+  }
+
+  const isOwner = state.game.me?.id === state.game.ownerPlayerId;
+  const isPaused = state.game.status === "paused";
+  const isEnded = state.game.status === "ended";
+  const canPause = state.game.status === "running";
+  const summary = isEnded
+    ? "Exit this completed game and return to the start screen."
+    : isOwner
+    ? isPaused
+      ? "The game is paused for everyone."
+      : canPause
+        ? "Pause the round or end the game for everyone."
+        : "End this game for everyone."
+    : "Exit this game and return to the start screen.";
+  const ownerPauseControl = isPaused
+    ? `<button class="primary-button" id="resumeGameButton" type="button">Resume game</button>`
+    : canPause
+      ? `<button class="secondary-button" id="pauseGameButton" type="button">Pause game</button>`
+      : "";
+
+  gameMenuContent.innerHTML = `
+    <div class="game-menu-stack">
+      <p class="game-menu-summary">${escapeHtml(summary)}</p>
+      ${
+        isEnded
+          ? `<button class="danger-button" id="confirmLeaveGameButton" type="button">Exit game</button>`
+          : isOwner
+          ? `
+            ${ownerPauseControl}
+            <button class="danger-button" id="confirmEndGameButton" type="button">End game</button>
+          `
+          : `<button class="danger-button" id="confirmLeaveGameButton" type="button">Exit game</button>`
+      }
+      <button class="secondary-button" id="cancelGameMenuButton" type="button">Cancel</button>
+    </div>
+  `;
+
+  document.querySelector("#pauseGameButton")?.addEventListener("click", pauseGame);
+  document.querySelector("#resumeGameButton")?.addEventListener("click", resumeGame);
+  document.querySelector("#confirmEndGameButton")?.addEventListener("click", endGame);
+  document.querySelector("#confirmLeaveGameButton")?.addEventListener("click", leaveGame);
+  document.querySelector("#cancelGameMenuButton")?.addEventListener("click", closeGameMenu);
+}
+
+function openGameMenu() {
+  renderGameMenu();
+  if (!gameMenuDialog.open) gameMenuDialog.showModal();
+}
+
+async function pauseGame() {
+  if (!state.game) return;
+  const response = await emitAck("pause_game", {
+    gameId: state.game.id
+  });
+  if (!response.ok) {
+    showMessage(response.error, "warning");
+    return;
+  }
+  closeGameMenu();
+}
+
+async function resumeGame() {
+  if (!state.game) return;
+  const response = await emitAck("resume_game", {
+    gameId: state.game.id
+  });
+  if (!response.ok) {
+    showMessage(response.error, "warning");
+    return;
+  }
+  closeGameMenu();
 }
 
 async function endGame() {
   if (!state.game) return;
-  if (!confirmGameExit("End this game for everyone?")) return;
   const response = await emitAck("end_game", {
     gameId: state.game.id
   });
-  if (!response.ok) setNotice(response.error);
+  if (!response.ok) {
+    showMessage(response.error, "warning");
+    return;
+  }
+  closeGameMenu();
 }
 
 function resetLocalGame(message = "") {
@@ -737,15 +809,15 @@ async function leaveGame() {
     resetLocalGame("You left the game.");
     return;
   }
-  if (!confirmGameExit("Leave this game?")) return;
 
   const response = await emitAck("leave_game", {
     gameId: state.game.id
   });
   if (!response.ok) {
-    setNotice(response.error);
+    showMessage(response.error, "warning");
     return;
   }
+  closeGameMenu();
   resetLocalGame("You left the game.");
 }
 
@@ -1354,6 +1426,8 @@ function willEndAfterCountdown(game) {
 }
 
 function countdownState(game) {
+  if (game?.status === "paused") return null;
+
   const round = game?.currentRound;
   const now = Date.now();
   if (round?.status === "active") {
@@ -1385,11 +1459,13 @@ function countdownState(game) {
 }
 
 function countdownTitle(game, countdown) {
+  if (game?.status === "paused") return "Paused";
   if (countdown?.mode === "break") return willEndAfterCountdown(game) ? "Final scores soon" : "Next object soon";
   return game?.currentRound?.item || "Get ready";
 }
 
 function countdownLabel(game, countdown) {
+  if (game?.status === "paused") return "Game paused";
   if (countdown?.mode === "break") return willEndAfterCountdown(game) ? "Final scores in" : "Next object in";
   return `Round ${game.roundsAwarded + 1} of ${game.normalRounds}${game.roundsAwarded >= game.normalRounds ? " - tie breaker" : ""}`;
 }
@@ -1649,8 +1725,9 @@ function renderCreate() {
             <input class="text-input" name="ownerName" autocomplete="nickname" maxlength="24" required placeholder="Game owner" value="${username}" autofocus>
           </label>
           <label class="field">
-            <span>Initial objects</span>
-            <textarea class="text-input word-list-input" name="initialWords" autocomplete="off" autocapitalize="none" spellcheck="false" rows="5" placeholder="pencil, backpack&#10;blue shoes; notebook"></textarea>
+            <span>Objects or AI guide</span>
+            <textarea class="text-input word-list-input" name="initialChallengeInput" autocomplete="off" autocapitalize="sentences" spellcheck="true" rows="5" placeholder="pencil, backpack&#10;blue shoes; notebook&#10;&#10;or: soft colorful things safe for young kids"></textarea>
+            <small class="field-note">Enter a list or describe what AI should generate. AI will refine it for safety and camera recognition. Leave blank for random AI picks.</small>
           </label>
           <button class="primary-button" type="submit">Create game</button>
           <button class="secondary-button" id="backToChoiceButton" type="button">Back</button>
@@ -1793,8 +1870,8 @@ function renderLobby() {
     setNotice("Game URL copied.");
   });
   document.querySelector("#startButton")?.addEventListener("click", startGame);
-  document.querySelector("#endGameButton")?.addEventListener("click", endGame);
-  document.querySelector("#leaveGameButton")?.addEventListener("click", leaveGame);
+  document.querySelector("#endGameButton")?.addEventListener("click", openGameMenu);
+  document.querySelector("#leaveGameButton")?.addEventListener("click", openGameMenu);
 }
 
 function ensureGameShell() {
@@ -1817,10 +1894,14 @@ function renderGame() {
   const game = state.game;
   const countdown = countdownState(game);
   const countdownLeft = countdown?.left || 0;
-  const isRoundActive = countdown?.mode === "round";
+  const isPaused = game.status === "paused";
+  const isRoundActive = !isPaused && countdown?.mode === "round";
   const isUrgent = isRoundActive && countdownLeft > 0 && countdownLeft <= 10000;
   const alertDuration = `${alertFlashDuration(countdownLeft)}s`;
-  const cameraMessage = cameraState.error || (cameraState.stream ? "Camera ready" : "Starting camera");
+  const countdownText = countdown ? formatSeconds(countdownLeft) : isPaused ? "Paused" : "0.00s";
+  const cameraMessage = isPaused
+    ? "Game paused"
+    : cameraState.error || (cameraState.stream ? "Camera ready" : "Starting camera");
   const cameraDisabled = !isRoundActive || !cameraState.stream || Boolean(cameraState.error) || cameraState.sending;
   const torchDisabled = !cameraState.stream || !cameraState.torchSupported || cameraState.torchChanging;
   const torchLabel = cameraState.torchChanging ? "Flash..." : cameraState.torchOn ? "Flash on" : "Flash";
@@ -1831,9 +1912,6 @@ function renderGame() {
         ? "Turn flashlight off"
         : "Turn flashlight on"
       : "Flashlight is not available on this camera";
-  const isOwner = game.me?.id === game.ownerPlayerId;
-  const exitButtonId = isOwner ? "endGameButton" : "leaveGameButton";
-  const exitLabel = isOwner ? "End game" : "Leave game";
   cameraDebug("render", "game", {
     roundStatus: game.currentRound?.status || null,
     countdownMode: countdown?.mode || null,
@@ -1848,11 +1926,11 @@ function renderGame() {
   urgencyAlert.style.setProperty("--alert-duration", alertDuration);
 
   gameScreen.querySelector("#gameOverlay").innerHTML = `
-    <button class="game-exit-button" id="${exitButtonId}" type="button" aria-label="${exitLabel}" title="${exitLabel}">x</button>
+    <button class="game-exit-button" id="gameMenuButton" type="button" aria-label="Game options" title="Game options">x</button>
     <header class="game-hud">
       <div class="game-hud-top">
         <span class="game-round-label">${escapeHtml(countdownLabel(game, countdown))}</span>
-        <span class="round-time">${formatSeconds(countdownLeft)}</span>
+        <span class="round-time">${escapeHtml(countdownText)}</span>
       </div>
       <h1 class="game-target-word">${escapeHtml(countdownTitle(game, countdown))}</h1>
       ${timerMarkup(countdown, { showChip: false })}
@@ -1861,6 +1939,7 @@ function renderGame() {
         <strong class="last-chance-time">${formatSeconds(countdownLeft)}</strong>
       </div>
       <div class="game-info-strip">
+        ${isPaused ? `<span>Paused by owner</span>` : ""}
         ${countdown?.mode === "break" && game.lastResult?.message ? `<span>${escapeHtml(game.lastResult.message)}</span>` : ""}
         <span>${escapeHtml(cameraMessage)}</span>
         ${cameraState.torchError ? `<span>${escapeHtml(cameraState.torchError)}</span>` : ""}
@@ -1886,7 +1965,11 @@ function renderGame() {
           title="${escapeHtml(torchTitle)}"
           ${torchDisabled ? "disabled" : ""}
         >
-          <span class="flashlight-glyph" aria-hidden="true"></span>
+          <svg class="flashlight-icon" viewBox="0 0 56 28" aria-hidden="true" focusable="false">
+            <path class="flashlight-beam" d="M42 6 L55 1 L55 27 L42 22 Z"></path>
+            <path class="flashlight-body" d="M4 10 H24 L31 6 H39 C41 6 42 7 42 9 V19 C42 21 41 22 39 22 H31 L24 18 H4 Z"></path>
+            <path class="flashlight-lines" d="M12 10 V18 M19 10 V18 M31 6 V22"></path>
+          </svg>
           <span>${escapeHtml(torchLabel)}</span>
         </button>
         <button class="primary-button game-shutter-button" id="submitPhotoButton" type="button" ${cameraDisabled ? "disabled" : ""}>
@@ -1898,8 +1981,7 @@ function renderGame() {
 
   document.querySelector("#submitPhotoButton").addEventListener("click", submitPhoto);
   document.querySelector("#toggleTorchButton")?.addEventListener("click", toggleTorch);
-  document.querySelector("#endGameButton")?.addEventListener("click", endGame);
-  document.querySelector("#leaveGameButton")?.addEventListener("click", leaveGame);
+  document.querySelector("#gameMenuButton")?.addEventListener("click", openGameMenu);
   attachCameraStream();
 }
 
@@ -1925,7 +2007,7 @@ function renderEnd() {
   `;
 
   document.querySelector("#restartButton")?.addEventListener("click", restartGame);
-  document.querySelector("#leaveGameButton").addEventListener("click", leaveGame);
+  document.querySelector("#leaveGameButton").addEventListener("click", openGameMenu);
 }
 
 function render() {
@@ -2110,14 +2192,16 @@ socket.on("left_game", ({ message }) => {
 
 leaderboardButton.addEventListener("click", openLeaderboard);
 closeLeaderboardButton.addEventListener("click", () => leaderboardDialog.close());
+closeGameMenuButton.addEventListener("click", closeGameMenu);
+gameMenuDialog.addEventListener("cancel", closeGameMenu);
 
 document.addEventListener(
   "pointerdown",
   () => {
     unlockAudio().then((unlocked) => {
       if (!unlocked) return;
-      preloadBackgroundMusic();
       syncBackgroundMusic();
+      preloadBackgroundMusic(backgroundMusicMode());
     });
   },
   { once: true, capture: true }

@@ -186,6 +186,16 @@ io.on("connection", (socket) => {
     ack(callback, result.error ? { ok: false, error: result.error } : { ok: true });
   });
 
+  socket.on("pause_game", (payload, callback) => {
+    const result = engine.pauseGameByOwner(socket, payload);
+    ack(callback, result.error ? { ok: false, error: result.error } : { ok: true });
+  });
+
+  socket.on("resume_game", (payload, callback) => {
+    const result = engine.resumeGameByOwner(socket, payload);
+    ack(callback, result.error ? { ok: false, error: result.error } : { ok: true });
+  });
+
   socket.on("end_game", async (payload, callback) => {
     const result = await engine.endGameByOwner(socket, payload);
     ack(callback, result.error ? { ok: false, error: result.error } : { ok: true });

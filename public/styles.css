@@ -252,6 +252,13 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.field-note {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
 .text-input {
   background: #fff;
   border: 2px solid var(--ink);
@@ -898,35 +905,49 @@ body.is-game-active .main-stage {
   gap: 8px;
   min-height: 58px;
   min-width: 118px;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.game-flash-button span {
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .game-flash-button.is-on {
   background: var(--yellow);
 }
 
-.flashlight-glyph {
-  border: 2px solid currentColor;
-  border-radius: 4px 4px 8px 8px;
-  display: inline-block;
-  height: 22px;
-  position: relative;
-  transform: rotate(-14deg);
-  width: 14px;
+.flashlight-icon {
+  color: currentColor;
+  flex: 0 0 auto;
+  height: 26px;
+  overflow: visible;
+  width: 52px;
 }
 
-.flashlight-glyph::before {
-  background: currentColor;
-  border-radius: 4px 4px 1px 1px;
-  content: "";
-  height: 5px;
-  left: 2px;
-  position: absolute;
-  right: 2px;
-  top: -7px;
+.flashlight-body {
+  fill: #ffffff;
+  stroke: currentColor;
+  stroke-linejoin: round;
+  stroke-width: 3;
 }
 
-.game-flash-button.is-on .flashlight-glyph {
-  box-shadow: 0 0 18px rgba(255, 205, 71, 0.9);
+.flashlight-lines {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 2.5;
+}
+
+.flashlight-beam {
+  fill: rgba(255, 205, 71, 0.7);
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.game-flash-button.is-on .flashlight-beam {
+  opacity: 1;
 }
 
 @keyframes toast-life {
@@ -1014,6 +1035,25 @@ body.is-game-active .main-stage {
   margin-top: 12px;
 }
 
+.game-menu-dialog {
+  max-width: 420px;
+}
+
+.game-menu-content {
+  margin-top: 14px;
+}
+
+.game-menu-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.game-menu-summary {
+  color: var(--muted);
+  font-weight: 850;
+  margin: 0;
+}
+
 .empty-state {
   color: var(--muted);
   font-weight: 850;
@@ -1088,6 +1128,58 @@ body.is-game-active .main-stage {
     white-space: nowrap;
   }
 
+  body.is-game-active .top-bar {
+    align-items: center;
+    gap: 8px;
+    padding: 7px 8px;
+  }
+
+  body.is-game-active .brand {
+    flex: 0 1 auto;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  body.is-game-active .brand img {
+    height: 32px;
+    width: 32px;
+  }
+
+  body.is-game-active .brand strong {
+    font-size: 0.92rem;
+    white-space: nowrap;
+  }
+
+  body.is-game-active .brand small {
+    display: none;
+  }
+
+  body.is-game-active .top-actions {
+    flex: 0 0 auto;
+    gap: 8px;
+  }
+
+  body.is-game-active .top-actions .icon-button {
+    font-size: 1rem;
+    height: 38px;
+    width: 38px;
+  }
+
+  body.is-game-active .connection-pill {
+    font-size: 0.72rem;
+    max-width: 136px;
+    padding: 6px 8px;
+  }
+
+  body.is-game-active .game-screen {
+    height: calc(100svh - 58px);
+    min-height: 0;
+  }
+
+  body.is-game-active .game-overlay {
+    min-height: 100%;
+  }
+
   .hero-art img {
     height: 168px;
     width: 168px;
@@ -1117,6 +1209,10 @@ body.is-game-active .main-stage {
     gap: 8px;
   }
 
+  .game-action-row {
+    flex-wrap: nowrap;
+  }
+
   .game-info-strip span {
     font-size: 0.74rem;
   }
@@ -1126,11 +1222,22 @@ body.is-game-active .main-stage {
   }
 
   .game-flash-button {
-    flex: 0 0 104px;
-    min-width: 104px;
+    flex: 0 0 112px;
+    font-size: 0.82rem;
+    gap: 5px;
+    min-width: 0;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .flashlight-icon {
+    height: 20px;
+    width: 38px;
   }
 
   .game-shutter-button {
     flex: 1 1 160px;
+    font-size: 1rem;
+    min-width: 0;
   }
 }

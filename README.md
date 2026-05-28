@@ -4,6 +4,8 @@ Capture Quest is a realtime camera scavenger hunt PWA. One player creates a game
 
 Game IDs use Crockford Base32. Player-entered codes accept lowercase letters, hyphens or spaces, `O` as `0`, and `I`/`L` as `1`.
 
+When creating a game, owners can leave the seed field blank for random AI-picked objects, enter a word list, or enter a guide for AI-generated objects. Seeded input is refined by AI into safe, camera-recognizable challenges before the game starts.
+
 ## Run
 
 1. Copy `config.sample.js` to `config.js`.
