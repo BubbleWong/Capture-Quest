@@ -1,6 +1,7 @@
 export default {
+  mode: "development",
   port: 3000,
-  publicBaseUrl: "http://localhost:3000",
+  publicBaseUrl: "",
   game: {
     maxPlayers: 20,
     normalRounds: 5,
@@ -28,7 +29,7 @@ export default {
   cloudflare: {
     enabled: false,
     token: "fake-cloudflare-tunnel-token",
-    domain: "capture-quest.example.com",
+    domain: "cq-dev.bubbleh.com",
     command: "cloudflared",
     url: "http://127.0.0.1:3000"
   }

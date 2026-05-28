@@ -127,6 +127,7 @@ async function gameJoinPayload(socket, game, player) {
 app.get("/api/health", (_request, response) => {
   response.json({
     ok: true,
+    mode: config.mode,
     database: database.enabled ? "postgres" : "memory",
     model: config.openRouter.model,
     assetVersion: currentAssetVersion()

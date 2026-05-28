@@ -71,7 +71,7 @@ const cameraState = {
 const cameraRequestTimeoutMs = 12000;
 const cameraRetryDelayMs = 3000;
 const cameraPermissionCheckMs = 5000;
-const captureMaxSide = 960;
+const captureMaxSide = 640;
 const captureJpegQuality = 0.62;
 
 function describeCameraError(error) {

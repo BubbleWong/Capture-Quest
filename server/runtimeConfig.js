@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const defaults = {
+  mode: "development",
   port: 3000,
   publicBaseUrl: "",
   game: {
@@ -61,6 +62,10 @@ function boolFromEnv(value, fallback) {
   return ["1", "true", "yes", "on"].includes(String(value).toLowerCase());
 }
 
+function normalizeMode(value) {
+  return String(value || "development").toLowerCase() === "production" ? "production" : "development";
+}
+
 async function loadLocalConfig() {
   const localConfigPath = path.join(rootDir, "config.js");
   if (!fs.existsSync(localConfigPath)) return {};
@@ -72,7 +77,9 @@ async function loadLocalConfig() {
 }
 
 function applyEnv(config) {
+  const mode = normalizeMode(process.env.CAPTURE_QUEST_MODE || process.env.NODE_ENV || config.mode);
   return mergeDeep(config, {
+    mode,
     port: process.env.PORT ? Number(process.env.PORT) : config.port,
     publicBaseUrl: process.env.PUBLIC_BASE_URL || config.publicBaseUrl,
     postgres: {
@@ -105,13 +112,24 @@ function applyEnv(config) {
 }
 
 function finalizeConfig(config) {
-  if (!config.publicBaseUrl && config.cloudflare.domain) {
+  const mode = normalizeMode(config.mode);
+  const cloudflare = {
+    ...config.cloudflare,
+    enabled: mode === "development" && Boolean(config.cloudflare.enabled)
+  };
+  const finalizedConfig = {
+    ...config,
+    mode,
+    cloudflare
+  };
+
+  if (!finalizedConfig.publicBaseUrl && finalizedConfig.cloudflare.enabled && finalizedConfig.cloudflare.domain) {
     return {
-      ...config,
-      publicBaseUrl: `https://${config.cloudflare.domain.replace(/^https?:\/\//, "").replace(/\/$/, "")}`
+      ...finalizedConfig,
+      publicBaseUrl: `https://${finalizedConfig.cloudflare.domain.replace(/^https?:\/\//, "").replace(/\/$/, "")}`
     };
   }
-  return config;
+  return finalizedConfig;
 }
 
 export const config = finalizeConfig(applyEnv(mergeDeep(defaults, await loadLocalConfig())));

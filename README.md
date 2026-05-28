@@ -27,6 +27,8 @@ Open `http://localhost:3000`.
 - `POSTGRES_USER`
 - `POSTGRES_PASSWORD`
 - `POSTGRES_DATABASE`
+- `CAPTURE_QUEST_MODE` (`development` or `production`)
+- `NODE_ENV` (`production` also enables production mode when `CAPTURE_QUEST_MODE` is unset)
 - `OPENROUTER_API_KEY`
 - `OPENROUTER_MODEL`
 - `OPENROUTER_VISION_MODEL`
@@ -43,9 +45,11 @@ The default OpenRouter model is `openai/gpt-5.4-mini`; override it with `openRou
 
 ## HTTPS Phone Testing
 
-Camera access on phones requires HTTPS. To expose the local server through Cloudflare Tunnel, install `cloudflared`, then set `cloudflare.enabled`, `cloudflare.token`, and `cloudflare.domain` in `config.js`. When the Node server starts, it starts the tunnel after the HTTP listener is ready and stops the tunnel during server shutdown.
+Camera access on phones requires HTTPS. Development testing uses `https://cq-dev.bubbleh.com`. To expose the local server through Cloudflare Tunnel, install `cloudflared`, then set `cloudflare.enabled`, `cloudflare.token`, and `cloudflare.domain` in `config.js`.
 
-Set `publicBaseUrl` to the HTTPS domain so generated game links and QR codes use the tunnel URL.
+The server starts and stops the Cloudflare tunnel only in development mode. Set `CAPTURE_QUEST_MODE=production` or `NODE_ENV=production` for production runs; production mode leaves tunnel management off even if local Cloudflare settings exist.
+
+Set `publicBaseUrl` to the HTTPS domain, or leave it blank to use the configured development tunnel domain for generated game links and QR codes.
 
 ## Music Credits
 
