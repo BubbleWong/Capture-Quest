@@ -21,16 +21,32 @@ export default {
     apiKey: "",
     model: "openai/gpt-5.4-mini",
     visionModel: "google/gemini-3.1-flash-lite-preview",
+    ttsModel: "google/gemini-3.1-flash-tts-preview",
+    ttsVoice: "Kore",
+    ttsResponseFormat: "pcm",
     baseUrl: "https://openrouter.ai/api/v1",
     appTitle: "Capture Quest",
     referer: "http://localhost:3000",
     mockWhenMissingKey: true
   },
+  s3: {
+    enabled: false,
+    endpointUrl: "https://s3.example.com",
+    region: "us-east-1",
+    accessKeyId: "fake-s3-access-key",
+    secretAccessKey: "fake-s3-secret-key",
+    bucket: "capture-quest-tts",
+    publicBaseUrl: "",
+    forcePathStyle: true
+  },
   cloudflare: {
     enabled: false,
     token: "fake-cloudflare-tunnel-token",
-    domain: "cq-dev.bubbleh.com",
+    domain: "cq-dev.example.com",
     command: "cloudflared",
     url: "http://127.0.0.1:3000"
+  },
+  logging: {
+    gameEvents: false
   }
 };

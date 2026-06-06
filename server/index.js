@@ -8,6 +8,7 @@ import QRCode from "qrcode";
 import { config, projectRoot } from "./runtimeConfig.js";
 import { createDatabase } from "./database.js";
 import { createLlm } from "./llm.js";
+import { createChallengeAudioCache } from "./challengeAudio.js";
 import { GameEngine } from "./gameEngine.js";
 import { createCloudflareTunnel } from "./cloudflareTunnel.js";
 
@@ -36,8 +37,10 @@ const indexTemplate = fs.readFileSync(path.join(publicDir, "index.html"), "utf8"
 const manifestTemplate = fs.readFileSync(path.join(publicDir, "manifest.webmanifest"), "utf8");
 const database = await createDatabase(config);
 const llm = createLlm(config);
-const engine = new GameEngine({ io, config, llm, database });
+const audioCache = createChallengeAudioCache(config);
+const engine = new GameEngine({ io, config, llm, database, audioCache });
 const cloudflareTunnel = createCloudflareTunnel(config);
+const serverInstanceId = crypto.randomUUID().slice(0, 8);
 
 app.use(express.json({ limit: "2mb" }));
 
@@ -99,6 +102,35 @@ function ack(callback, payload) {
   if (typeof callback === "function") callback(payload);
 }
 
+function normalizeLogValue(value) {
+  return String(value || "").trim().slice(0, 80);
+}
+
+function socketDebugContext(socket) {
+  return {
+    instanceId: serverInstanceId,
+    socketId: socket.id,
+    transport: socket.conn?.transport?.name || "",
+    host: socket.handshake.headers.host || "",
+    activeGameCount: engine.games.size
+  };
+}
+
+function logGameSocketEvent(socket, event, payload = {}, result = {}) {
+  if (!config.logging?.gameEvents && !result.error) return;
+
+  console.log(
+    `[game:${event}]`,
+    JSON.stringify({
+      ...socketDebugContext(socket),
+      status: result.error ? "error" : "ok",
+      gameId: normalizeLogValue(payload.gameId || result.game?.id || result.gameId),
+      username: normalizeLogValue(payload.username),
+      error: result.error || ""
+    })
+  );
+}
+
 function publicBaseUrl(socket) {
   if (config.publicBaseUrl) return config.publicBaseUrl.replace(/\/$/, "");
   const proto = socket.handshake.headers["x-forwarded-proto"] || "http";
@@ -127,10 +159,12 @@ async function gameJoinPayload(socket, game, player) {
 app.get("/api/health", (_request, response) => {
   response.json({
     ok: true,
+    instanceId: serverInstanceId,
     mode: config.mode,
     database: database.enabled ? "postgres" : "memory",
     model: config.openRouter.model,
-    assetVersion: currentAssetVersion()
+    assetVersion: currentAssetVersion(),
+    activeGameCount: engine.games.size
   });
 });
 
@@ -146,8 +180,10 @@ io.on("connection", (socket) => {
   socket.on("create_game", async (payload, callback) => {
     try {
       const { game, player } = engine.createGame(socket, payload);
+      logGameSocketEvent(socket, "create", payload, { game });
       ack(callback, await gameJoinPayload(socket, game, player));
     } catch (error) {
+      logGameSocketEvent(socket, "create", payload, { error: error.message });
       ack(callback, { ok: false, error: error.message });
     }
   });
@@ -155,9 +191,11 @@ io.on("connection", (socket) => {
   socket.on("join_game", async (payload, callback) => {
     try {
       const result = engine.joinGame(socket, payload);
+      logGameSocketEvent(socket, "join", payload, result);
       if (result.error) return ack(callback, { ok: false, error: result.error });
       ack(callback, await gameJoinPayload(socket, result.game, result.player));
     } catch (error) {
+      logGameSocketEvent(socket, "join", payload, { error: error.message });
       ack(callback, { ok: false, error: error.message });
     }
   });
@@ -165,9 +203,11 @@ io.on("connection", (socket) => {
   socket.on("rejoin_game", async (payload, callback) => {
     try {
       const result = engine.rejoinGame(socket, payload);
+      logGameSocketEvent(socket, "rejoin", payload, result);
       if (result.error) return ack(callback, { ok: false, error: result.error });
       ack(callback, await gameJoinPayload(socket, result.game, result.player));
     } catch (error) {
+      logGameSocketEvent(socket, "rejoin", payload, { error: error.message });
       ack(callback, { ok: false, error: error.message });
     }
   });
@@ -209,6 +249,11 @@ io.on("connection", (socket) => {
 
   socket.on("submit_capture", (payload, callback) => {
     const result = engine.submitCapture(socket, payload);
+    ack(callback, result.error ? { ok: false, error: result.error } : { ok: true, ignored: Boolean(result.ignored) });
+  });
+
+  socket.on("skip_round", (payload, callback) => {
+    const result = engine.voteSkipRound(socket, payload);
     ack(callback, result.error ? { ok: false, error: result.error } : { ok: true, ignored: Boolean(result.ignored) });
   });
 

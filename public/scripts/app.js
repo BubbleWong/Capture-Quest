@@ -14,8 +14,53 @@ const initialGameId = query.get("game")?.toUpperCase() || "";
 const assetVersion = window.__CAPTURE_QUEST_ASSET_VERSION__ || "dev";
 const sessionKey = "captureQuestSession";
 const usernameKey = "captureQuestLastUsername";
+const clientIdKey = "captureQuestClientId";
+const bgmMutedKey = "captureQuestBgmMuted";
 const gameCodeLength = 6;
 const crockfordCharacters = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+const challengeLanguageOptions = [
+  ["ar", "Arabic"],
+  ["zh-hans-yue", "Chinese simplified (cantonese)"],
+  ["zh-hans-cmn", "Chinese simplified (mandarin)"],
+  ["zh-hant-yue", "Chinese traditional (cantonese)"],
+  ["zh-hant-cmn", "Chinese traditional (mandarin)"],
+  ["en", "English"],
+  ["fr", "French"],
+  ["de", "German"],
+  ["hi", "Hindi"],
+  ["it", "Italian"],
+  ["ja", "Japanese"],
+  ["ko", "Korean"],
+  ["pt", "Portuguese"],
+  ["ru", "Russian"],
+  ["es", "Spanish"]
+];
+const funnyAnimalUsernames = [
+  "Red Monkey",
+  "Speedy Snail",
+  "Giant Ant",
+  "Herbivore Lion",
+  "Turbo Sloth",
+  "Tiny Elephant",
+  "Sleepy Cheetah",
+  "Polite Shark",
+  "Disco Owl",
+  "Noodle Panda",
+  "Pocket Rhino",
+  "Fancy Frog",
+  "Wobbly Walrus",
+  "Royal Duck",
+  "Cosmic Hamster",
+  "Detective Otter",
+  "Spicy Koala",
+  "Sneaky Turtle",
+  "Moon Moose",
+  "Bouncy Beaver",
+  "Professor Goose",
+  "Velvet Crab",
+  "Lucky Gecko",
+  "Dizzy Dolphin"
+];
 const cameraDebugEnabled =
   query.get("debugCamera") === "1" || localStorage.getItem("captureQuestDebugCamera") === "1";
 const cameraDebugEvents = [];
@@ -32,7 +77,9 @@ const state = {
   notificationId: 0,
   timerInterval: null,
   urlGameId: initialGameId,
-  prefillGameId: initialGameId
+  prefillGameId: initialGameId,
+  ownerNamePlaceholder: "",
+  joinNamePlaceholder: ""
 };
 
 const cameraState = {
@@ -149,6 +196,7 @@ if (cameraDebugEnabled) {
 const soundState = {
   context: null,
   unlocked: false,
+  bgmMuted: readBgmMuted(),
   countdownTickKey: "",
   lastEndSoundGameId: "",
   musicBuffers: {},
@@ -157,6 +205,7 @@ const soundState = {
   musicGain: null,
   musicMode: ""
 };
+let targetPronunciationAudio = null;
 
 const backgroundMusicTracks = {
   lobby: {
@@ -179,6 +228,29 @@ function createAudioContext() {
   if (!AudioContextClass) return null;
   soundState.context = new AudioContextClass();
   return soundState.context;
+}
+
+function readBgmMuted() {
+  try {
+    return localStorage.getItem(bgmMutedKey) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function saveBgmMuted(muted) {
+  soundState.bgmMuted = Boolean(muted);
+  try {
+    localStorage.setItem(bgmMutedKey, soundState.bgmMuted ? "1" : "0");
+  } catch {
+    // Local storage can be unavailable in private or restricted browsing modes.
+  }
+}
+
+function toggleBgmMuted() {
+  saveBgmMuted(!soundState.bgmMuted);
+  syncBackgroundMusic();
+  renderGameMenu();
 }
 
 async function unlockAudio() {
@@ -333,7 +405,9 @@ function loadBackgroundMusic(mode) {
 }
 
 function preloadBackgroundMusic(exceptMode = "") {
+  if (soundState.bgmMuted) return;
   window.setTimeout(() => {
+    if (soundState.bgmMuted) return;
     for (const mode of Object.keys(backgroundMusicTracks)) {
       if (mode !== exceptMode) loadBackgroundMusic(mode);
     }
@@ -368,6 +442,10 @@ function backgroundMusicMode() {
 }
 
 function startBackgroundMusic(mode) {
+  if (soundState.bgmMuted) {
+    stopBackgroundMusic();
+    return;
+  }
   if (!mode || !canPlaySound() || document.hidden) return;
   if (soundState.musicMode === mode && soundState.musicSource) return;
   if (soundState.musicMode && soundState.musicMode !== mode) stopBackgroundMusic();
@@ -398,7 +476,7 @@ function startBackgroundMusic(mode) {
 
 function syncBackgroundMusic() {
   const mode = backgroundMusicMode();
-  if (!mode || !soundState.unlocked || document.hidden) {
+  if (soundState.bgmMuted || !mode || !soundState.unlocked || document.hidden) {
     stopBackgroundMusic();
     return;
   }
@@ -431,7 +509,8 @@ function saveSession() {
     sessionKey,
     JSON.stringify({
       gameId: state.game.id,
-      playerId: state.playerId
+      playerId: state.playerId,
+      clientId: readClientId()
     })
   );
 }
@@ -461,6 +540,69 @@ function saveLastUsername(username) {
     // Local storage can be unavailable in private or restricted browsing modes.
   }
 }
+
+function randomFunnyAnimalUsername() {
+  const browserCrypto = globalThis.crypto;
+  if (browserCrypto?.getRandomValues) {
+    const bytes = new Uint32Array(1);
+    browserCrypto.getRandomValues(bytes);
+    return funnyAnimalUsernames[bytes[0] % funnyAnimalUsernames.length];
+  }
+  return funnyAnimalUsernames[Math.floor(Math.random() * funnyAnimalUsernames.length)];
+}
+
+function ensureOwnerNamePlaceholder() {
+  if (!state.ownerNamePlaceholder) {
+    state.ownerNamePlaceholder = randomFunnyAnimalUsername();
+  }
+  return state.ownerNamePlaceholder;
+}
+
+function ensureJoinNamePlaceholder() {
+  if (!state.joinNamePlaceholder) {
+    state.joinNamePlaceholder = randomFunnyAnimalUsername();
+  }
+  return state.joinNamePlaceholder;
+}
+
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || "")
+  );
+}
+
+function createClientId() {
+  const browserCrypto = globalThis.crypto;
+  if (browserCrypto?.randomUUID) return browserCrypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (browserCrypto?.getRandomValues) {
+    browserCrypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0"));
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex
+    .slice(8, 10)
+    .join("")}-${hex.slice(10).join("")}`;
+}
+
+function readClientId() {
+  try {
+    const stored = localStorage.getItem(clientIdKey);
+    if (isUuid(stored)) return stored.toLowerCase();
+    const nextClientId = createClientId();
+    localStorage.setItem(clientIdKey, nextClientId);
+    return nextClientId;
+  } catch {
+    if (!readClientId.memory) readClientId.memory = createClientId();
+    return readClientId.memory;
+  }
+}
+readClientId.memory = "";
 
 function imagePayloadInfo(imageDataUrl) {
   const separatorIndex = imageDataUrl.indexOf(",");
@@ -537,6 +679,7 @@ function notificationType(status) {
   if (status === "found") return "success";
   if (status === "miss") return "danger";
   if (status === "expired") return "warning";
+  if (status === "skip" || status === "skipped") return "warning";
   if (status === "target") return "target";
   return "info";
 }
@@ -589,7 +732,10 @@ function updateConnection(online) {
 function activeViewFromGame(game) {
   if (!game) return null;
   if (game.status === "ended") return "end";
-  if (game.status === "lobby" || game.status === "loading") return "lobby";
+  if (game.status === "lobby") return "lobby";
+  if (game.status === "loading") {
+    return game.currentRound || game.roundNumber > 0 || game.nextRoundAt || game.lastResult ? "game" : "lobby";
+  }
   return "game";
 }
 
@@ -607,12 +753,30 @@ function setJoinData(response) {
   return true;
 }
 
+function clearStaleGameLink(message = "") {
+  localStorage.removeItem(sessionKey);
+  state.view = "home";
+  state.game = null;
+  state.gameUrl = "";
+  state.qrCode = "";
+  state.playerId = "";
+  state.notifications = [];
+  state.prefillGameId = "";
+  updateGameQuery("");
+  state.notice = message;
+  render();
+}
+
 async function createGame(formData) {
-  saveLastUsername(formData.get("ownerName"));
+  const ownerName = String(formData.get("ownerName") || "").trim() || ensureOwnerNamePlaceholder();
+  saveLastUsername(ownerName);
   ensureCamera({ rerender: false });
   const response = await emitAck("create_game", {
-    username: formData.get("ownerName"),
-    initialChallengeInput: String(formData.get("initialChallengeInput") || "").trim()
+    username: ownerName,
+    clientId: readClientId(),
+    challengeLanguage: formData.get("challengeLanguage") || "en",
+    initialChallengeInput: String(formData.get("initialChallengeInput") || "").trim(),
+    teamUpEnabled: formData.get("teamUpEnabled") === "on"
   });
   if (setJoinData(response)) {
     state.view = "lobby";
@@ -621,10 +785,12 @@ async function createGame(formData) {
 }
 
 async function joinGame(formData) {
-  saveLastUsername(formData.get("playerName"));
+  const playerName = String(formData.get("playerName") || "").trim() || ensureJoinNamePlaceholder();
+  saveLastUsername(playerName);
   ensureCamera({ rerender: false });
   const response = await emitAck("join_game", {
-    username: formData.get("playerName"),
+    username: playerName,
+    clientId: readClientId(),
     gameId: formData.get("gameId")
   });
   if (setJoinData(response)) {
@@ -637,18 +803,20 @@ async function rejoinPreviousGame() {
   const stored = readSession();
   const targetGameId = state.urlGameId || stored?.gameId;
   const targetPlayerId = stored?.playerId;
-  if (!targetGameId || !targetPlayerId) return;
+  const clientId = readClientId();
+  const username = readLastUsername();
+  if (!targetGameId || (!targetPlayerId && !username)) return;
 
   const response = await emitAck("rejoin_game", {
     gameId: targetGameId,
-    playerId: targetPlayerId
+    playerId: targetPlayerId,
+    clientId,
+    username
   });
   if (setJoinData(response)) {
     setNotice("Rejoined game.");
   } else if (state.urlGameId) {
-    localStorage.removeItem(sessionKey);
-    state.prefillGameId = state.urlGameId;
-    render();
+    clearStaleGameLink();
   } else {
     localStorage.removeItem(sessionKey);
     state.notice = "";
@@ -727,6 +895,9 @@ function renderGameMenu() {
   gameMenuContent.innerHTML = `
     <div class="game-menu-stack">
       <p class="game-menu-summary">${escapeHtml(summary)}</p>
+      <button class="secondary-button" id="toggleBgmButton" type="button">
+        ${soundState.bgmMuted ? "Unmute BGM" : "Mute BGM"}
+      </button>
       ${
         isEnded
           ? `<button class="danger-button" id="confirmLeaveGameButton" type="button">Exit game</button>`
@@ -743,6 +914,7 @@ function renderGameMenu() {
 
   document.querySelector("#pauseGameButton")?.addEventListener("click", pauseGame);
   document.querySelector("#resumeGameButton")?.addEventListener("click", resumeGame);
+  document.querySelector("#toggleBgmButton")?.addEventListener("click", toggleBgmMuted);
   document.querySelector("#confirmEndGameButton")?.addEventListener("click", endGame);
   document.querySelector("#confirmLeaveGameButton")?.addEventListener("click", leaveGame);
   document.querySelector("#cancelGameMenuButton")?.addEventListener("click", closeGameMenu);
@@ -789,9 +961,9 @@ async function endGame() {
   closeGameMenu();
 }
 
-function resetLocalGame(message = "") {
+function resetLocalGame(message = "", { preserveSession = false } = {}) {
   stopCamera();
-  localStorage.removeItem(sessionKey);
+  if (!preserveSession) localStorage.removeItem(sessionKey);
   state.view = "home";
   state.game = null;
   state.gameUrl = "";
@@ -799,7 +971,7 @@ function resetLocalGame(message = "") {
   state.playerId = "";
   state.notifications = [];
   state.prefillGameId = "";
-  updateGameQuery("");
+  if (!preserveSession) updateGameQuery("");
   state.notice = message;
   render();
 }
@@ -1461,13 +1633,140 @@ function countdownState(game) {
 function countdownTitle(game, countdown) {
   if (game?.status === "paused") return "Paused";
   if (countdown?.mode === "break") return willEndAfterCountdown(game) ? "Final scores soon" : "Next object soon";
+  if (game?.status === "loading" && game.roundNumber > 0 && game.currentRound?.status !== "active") return "Next object loading";
   return game?.currentRound?.item || "Get ready";
 }
 
 function countdownLabel(game, countdown) {
   if (game?.status === "paused") return "Game paused";
+  if (game?.status === "loading" && game.roundNumber > 0 && game.currentRound?.status !== "active") return "Preparing";
   if (countdown?.mode === "break") return willEndAfterCountdown(game) ? "Final scores in" : "Next object in";
   return `Round ${game.roundsAwarded + 1} of ${game.normalRounds}${game.roundsAwarded >= game.normalRounds ? " - tie breaker" : ""}`;
+}
+
+function skipButtonLabel(game) {
+  const skip = game?.currentRound?.skip;
+  if (!skip) return "Skip";
+  const progress = skip.eligible > 1 ? ` ${skip.votes}/${skip.threshold}` : "";
+  return `${skip.voted ? "Skipped" : "Skip"}${progress}`;
+}
+
+function skipButtonTitle(game) {
+  const skip = game?.currentRound?.skip;
+  if (!skip) return "Vote to skip this object";
+  const unit = skip.mode === "team" ? "teams" : "players";
+  return `${skip.votes}/${skip.threshold} ${unit} voted to skip.`;
+}
+
+function speakerIconMarkup() {
+  return `
+    <svg class="target-audio-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4 9 H8 L13 5 V19 L8 15 H4 Z"></path>
+      <path d="M16 8 C17.5 9.5 17.5 14.5 16 16"></path>
+      <path d="M18.5 5.5 C21.5 8.8 21.5 15.2 18.5 18.5"></path>
+    </svg>
+  `;
+}
+
+function speechSynthesisLanguage(languageCode = "") {
+  const languageCodes = new Map([
+    ["AR", "ar-SA"],
+    ["ZH-HANS-YUE", "zh-HK"],
+    ["ZH-HANS-CMN", "zh-CN"],
+    ["ZH-HANT-YUE", "zh-HK"],
+    ["ZH-HANT-CMN", "zh-TW"],
+    ["EN", "en-US"],
+    ["FR", "fr-FR"],
+    ["DE", "de-DE"],
+    ["HI", "hi-IN"],
+    ["IT", "it-IT"],
+    ["JA", "ja-JP"],
+    ["KO", "ko-KR"],
+    ["PT", "pt-BR"],
+    ["RU", "ru-RU"],
+    ["ES", "es-ES"],
+    ["ZH", "zh-CN"],
+    ["ZH-HANT", "zh-TW"],
+    ["ZH-HANS-CN-CMN", "zh-CN"],
+    ["ZH-HANS-CN-YUE", "zh-HK"],
+    ["ZH-HANT-TW-CMN", "zh-TW"],
+    ["ZH-HANT-HK-YUE", "zh-HK"]
+  ]);
+  return languageCodes.get(String(languageCode || "").trim().toUpperCase()) || "en-US";
+}
+
+function playFallbackPronunciation(round) {
+  const speechSynthesis = window.speechSynthesis;
+  const SpeechSynthesisUtteranceClass = window.SpeechSynthesisUtterance;
+  if (!speechSynthesis || !SpeechSynthesisUtteranceClass) {
+    showMessage("Pronunciation audio is not ready yet.", "warning");
+    return;
+  }
+
+  const utterance = new SpeechSynthesisUtteranceClass(round.item);
+  utterance.lang = speechSynthesisLanguage(round.languageCode);
+  utterance.rate = 0.92;
+  utterance.pitch = 1.05;
+  const voices = speechSynthesis.getVoices?.() || [];
+  const matchingVoice = voices.find((voice) => voice.lang?.toLowerCase().startsWith(utterance.lang.toLowerCase()));
+  if (matchingVoice) utterance.voice = matchingVoice;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utterance);
+}
+
+function targetWordMarkup(game, countdown) {
+  const round = game?.currentRound;
+  if (
+    game?.status === "paused" ||
+    countdown?.mode === "break" ||
+    (game?.status === "loading" && round?.status !== "active") ||
+    !round?.item
+  ) {
+    return escapeHtml(countdownTitle(game, countdown));
+  }
+
+  const languageCode = String(round.languageCode || "").trim().toUpperCase();
+  const languageLabel = languageCode ? `<span class="target-language-code">[${escapeHtml(languageCode)}]</span>` : "";
+  const audioButton = `
+    <button
+      class="target-audio-button ${round.audioUrl ? "" : "is-fallback"}"
+      id="playTargetAudioButton"
+      type="button"
+      aria-label="Play pronunciation"
+      title="${round.audioUrl ? "Play pronunciation" : "Play pronunciation with device voice"}"
+    >${speakerIconMarkup()}</button>
+  `;
+
+  return `
+    <span class="target-word-row">
+      ${languageLabel}
+      <span class="target-object-text">${escapeHtml(round.item)}</span>
+      ${audioButton}
+    </span>
+  `;
+}
+
+function playTargetAudio() {
+  const round = state.game?.currentRound;
+  const audioUrl = round?.audioUrl;
+  if (!audioUrl) {
+    if (round?.item) playFallbackPronunciation(round);
+    return;
+  }
+
+  try {
+    if (targetPronunciationAudio) {
+      targetPronunciationAudio.pause();
+      targetPronunciationAudio = null;
+    }
+    targetPronunciationAudio = new Audio(audioUrl);
+    targetPronunciationAudio.preload = "auto";
+    targetPronunciationAudio.play().catch((error) => {
+      showMessage(`Pronunciation audio could not play: ${error.message}`, "warning");
+    });
+  } catch (error) {
+    showMessage(`Pronunciation audio could not play: ${error.message}`, "warning");
+  }
 }
 
 function alertFlashDuration(left) {
@@ -1524,9 +1823,12 @@ function playerRows(players) {
     .map((player, index) => {
       const stateText = [
         player.isOwner ? "owner" : "player",
+        player.teamName ? player.teamName.toLowerCase() : "",
         player.ready ? "ready" : "not ready",
         player.connected ? "online" : "offline"
-      ].join(" · ");
+      ]
+        .filter(Boolean)
+        .join(" · ");
       return `
         <li class="player-row">
           <span class="player-avatar">${index + 1}</span>
@@ -1545,7 +1847,49 @@ function renderNotice() {
   return state.notice ? `<div class="notice">${escapeHtml(state.notice)}</div>` : "";
 }
 
-function groupScoreRows(players) {
+function challengeLanguageOptionMarkup() {
+  return challengeLanguageOptions
+    .map(
+      ([value, label]) =>
+        `<option value="${escapeHtml(value)}" ${value === "en" ? "selected" : ""}>${escapeHtml(label)}</option>`
+    )
+    .join("");
+}
+
+function teamClass(teamId = "") {
+  return `is-team-${String(teamId || "").replace(/[^a-z0-9-]/gi, "").toLowerCase()}`;
+}
+
+function teamBadge(team, { compact = false } = {}) {
+  if (!team?.id) return "";
+  const letter = team.name?.trim()?.[0] || "?";
+  return `
+    <span class="team-badge ${teamClass(team.id)} ${compact ? "is-compact" : ""}" style="--team-color:${escapeHtml(team.color || "#4b7dff")}">
+      <span class="team-badge-icon">${escapeHtml(letter)}</span>
+      <span>${escapeHtml(team.name || "Team")}</span>
+    </span>
+  `;
+}
+
+function teamScoreRows(teams = []) {
+  return [...teams]
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+    .map(
+      (team, index) => `
+        <li class="score-row team-score-row ${teamClass(team.id)}" style="--team-color:${escapeHtml(team.color || "#4b7dff")}">
+          <span class="score-rank">${index + 1}</span>
+          <span class="score-name">
+            <span class="team-score-name">${escapeHtml(team.name)}</span>
+            <span class="team-score-meta">${team.players} player${team.players === 1 ? "" : "s"}</span>
+          </span>
+          <span class="score-value">${team.score}</span>
+        </li>
+      `
+    )
+    .join("");
+}
+
+function playerScoreRows(players) {
   return [...players]
     .sort((a, b) => b.score - a.score || a.username.localeCompare(b.username))
     .map(
@@ -1558,6 +1902,11 @@ function groupScoreRows(players) {
       `
     )
     .join("");
+}
+
+function leaderboardRows(game) {
+  if (game.teamUpEnabled) return teamScoreRows(game.teamScores || []);
+  return playerScoreRows(game.players || []);
 }
 
 function gameCodeCells(value) {
@@ -1641,8 +1990,24 @@ function setupGameCodeInput() {
   syncGameCodeInput();
 }
 
-function gameScorePills(players) {
-  return [...players]
+function gameScorePills(game) {
+  if (game.teamUpEnabled) {
+    const myTeamId = game.me?.teamId || "";
+    return [...(game.teamScores || [])]
+      .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+      .map(
+        (team) => `
+          <li class="game-score-pill team-score-pill ${team.id === myTeamId ? "is-me" : ""} ${teamClass(team.id)}" style="--team-color:${escapeHtml(team.color || "#4b7dff")}">
+            <span class="team-badge-icon">${escapeHtml(team.name?.[0] || "?")}</span>
+            <span class="game-score-name">${escapeHtml(team.name)}</span>
+            <span class="game-score-value">${team.score}</span>
+          </li>
+        `
+      )
+      .join("");
+  }
+
+  return [...game.players]
     .sort((a, b) => b.score - a.score || Number(b.isOwner) - Number(a.isOwner) || a.username.localeCompare(b.username))
     .map(
       (player) => `
@@ -1677,7 +2042,7 @@ function renderHome() {
           <p>Fast photo rounds for classrooms, living rooms, and rainy afternoons.</p>
         </div>
       </div>
-      <div class="form-side">
+      <div class="form-side home-form-side">
         ${renderNotice()}
         <div class="choice-grid">
           <button class="action-panel choice-card" id="showCreateButton" type="button">
@@ -1689,6 +2054,15 @@ function renderHome() {
             <span class="choice-title">Join Game</span>
           </button>
         </div>
+        <p class="copyright-line">
+          <a href="https://bubbleh.com" target="_blank" rel="noopener noreferrer">© 2026 bubbleh.com</a>
+          <span aria-hidden="true">|</span>
+          <a class="github-link" href="https://github.com/BubbleWong/Capture-Quest" target="_blank" rel="noopener noreferrer" aria-label="Capture Quest on GitHub">
+            <svg class="github-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path fill="currentColor" d="M8 0C3.58 0 0 3.64 0 8.13c0 3.59 2.29 6.63 5.47 7.71.4.08.55-.18.55-.39 0-.19-.01-.83-.01-1.5-2.01.38-2.53-.5-2.69-.96-.09-.23-.48-.96-.82-1.16-.28-.15-.68-.53-.01-.54.63-.01 1.08.59 1.23.83.72 1.23 1.87.88 2.33.67.07-.53.28-.88.51-1.08-1.78-.21-3.64-.9-3.64-4 0-.88.31-1.61.82-2.18-.08-.2-.36-1.03.08-2.15 0 0 .67-.22 2.2.83A7.42 7.42 0 0 1 8 3.94c.68 0 1.36.09 2 .27 1.53-1.05 2.2-.83 2.2-.83.44 1.12.16 1.95.08 2.15.51.57.82 1.29.82 2.18 0 3.11-1.87 3.79-3.65 4 .29.25.54.74.54 1.5 0 1.08-.01 1.95-.01 2.22 0 .22.15.47.55.39A8.05 8.05 0 0 0 16 8.13C16 3.64 12.42 0 8 0Z"></path>
+            </svg>
+          </a>
+        </p>
       </div>
     </section>
   `;
@@ -1696,17 +2070,19 @@ function renderHome() {
   document.querySelector("#showCreateButton").addEventListener("click", () => {
     state.view = "create";
     state.notice = "";
+    state.ownerNamePlaceholder = randomFunnyAnimalUsername();
     render();
   });
   document.querySelector("#showJoinButton").addEventListener("click", () => {
     state.view = "join";
     state.notice = "";
+    state.joinNamePlaceholder = randomFunnyAnimalUsername();
     render();
   });
 }
 
 function renderCreate() {
-  const username = escapeHtml(readLastUsername());
+  const ownerNamePlaceholder = escapeHtml(ensureOwnerNamePlaceholder());
   app.innerHTML = `
     <section class="screen screen-grid">
       <div class="hero-side">
@@ -1721,13 +2097,27 @@ function renderCreate() {
         <form class="action-panel stack" id="createForm">
           <h2>Create Game</h2>
           <label class="field">
-            <span>Your name</span>
-            <input class="text-input" name="ownerName" autocomplete="nickname" maxlength="24" required placeholder="Game owner" value="${username}" autofocus>
+            <span>Your name (optional)</span>
+            <input class="text-input" name="ownerName" autocomplete="nickname" maxlength="24" placeholder="${ownerNamePlaceholder}" value="" autofocus>
+          </label>
+          <label class="field">
+            <span>Language</span>
+            <select class="text-input" name="challengeLanguage">
+              ${challengeLanguageOptionMarkup()}
+            </select>
           </label>
           <label class="field">
             <span>Objects or AI guide</span>
             <textarea class="text-input word-list-input" name="initialChallengeInput" autocomplete="off" autocapitalize="sentences" spellcheck="true" rows="5" placeholder="pencil, backpack&#10;blue shoes; notebook&#10;&#10;or: soft colorful things safe for young kids"></textarea>
             <small class="field-note">Enter a list or describe what AI should generate. AI will refine it for safety and camera recognition. Leave blank for random AI picks.</small>
+          </label>
+          <label class="toggle-field">
+            <input name="teamUpEnabled" type="checkbox">
+            <span class="toggle-control" aria-hidden="true"></span>
+            <span>
+              <strong>Team-up mode</strong>
+              <small>Randomly balance players into red and blue teams.</small>
+            </span>
           </label>
           <button class="primary-button" type="submit">Create game</button>
           <button class="secondary-button" id="backToChoiceButton" type="button">Back</button>
@@ -1750,6 +2140,7 @@ function renderCreate() {
 function renderJoin() {
   const prefill = normalizeGameIdInput(state.prefillGameId);
   const username = escapeHtml(readLastUsername());
+  const playerNamePlaceholder = escapeHtml(ensureJoinNamePlaceholder());
   app.innerHTML = `
     <section class="screen screen-grid">
       <div class="hero-side">
@@ -1788,8 +2179,8 @@ function renderJoin() {
             <span class="field-hint" id="gameCodeError" aria-live="polite"></span>
           </div>
           <label class="field">
-            <span>Your name</span>
-            <input class="text-input" name="playerName" autocomplete="nickname" maxlength="24" required placeholder="Player" value="${username}">
+            <span>Your name (optional)</span>
+            <input class="text-input" name="playerName" autocomplete="nickname" maxlength="24" placeholder="${playerNamePlaceholder}" value="${username}">
           </label>
           <button class="primary-button" type="submit">Join game</button>
           <button class="secondary-button" id="backToChoiceButton" type="button">Back</button>
@@ -1831,6 +2222,7 @@ function renderLobby() {
       <div class="panel-title">
         ${renderNotice()}
         <span class="status-chip">${game.status === "loading" ? "loading objects" : "lobby"}</span>
+        ${game.teamUpEnabled ? `<span class="status-chip team-mode-chip">Team-up on</span>` : ""}
         <h1>Game ID</h1>
         <div class="game-code">${escapeHtml(game.id)}</div>
         <div class="copy-row">
@@ -1904,6 +2296,8 @@ function renderGame() {
     : cameraState.error || (cameraState.stream ? "Camera ready" : "Starting camera");
   const cameraDisabled = !isRoundActive || !cameraState.stream || Boolean(cameraState.error) || cameraState.sending;
   const torchDisabled = !cameraState.stream || !cameraState.torchSupported || cameraState.torchChanging;
+  const skip = game.currentRound?.skip || null;
+  const skipDisabled = !isRoundActive || Boolean(skip?.voted);
   const torchLabel = cameraState.torchChanging ? "Flash..." : cameraState.torchOn ? "Flash on" : "Flash";
   const torchTitle = !cameraState.stream
     ? "Camera is starting"
@@ -1912,6 +2306,13 @@ function renderGame() {
         ? "Turn flashlight off"
         : "Turn flashlight on"
       : "Flashlight is not available on this camera";
+  const myTeam = game.teamUpEnabled
+    ? (game.teamScores || []).find((team) => team.id === game.me?.teamId) || {
+        id: game.me?.teamId,
+        name: game.me?.teamName,
+        color: game.me?.teamColor
+      }
+    : null;
   cameraDebug("render", "game", {
     roundStatus: game.currentRound?.status || null,
     countdownMode: countdown?.mode || null,
@@ -1926,13 +2327,14 @@ function renderGame() {
   urgencyAlert.style.setProperty("--alert-duration", alertDuration);
 
   gameScreen.querySelector("#gameOverlay").innerHTML = `
-    <button class="game-exit-button" id="gameMenuButton" type="button" aria-label="Game options" title="Game options">x</button>
+    <button class="game-exit-button" id="gameMenuButton" type="button" aria-label="Game options" title="Game options">&#9881;</button>
     <header class="game-hud">
       <div class="game-hud-top">
         <span class="game-round-label">${escapeHtml(countdownLabel(game, countdown))}</span>
         <span class="round-time">${escapeHtml(countdownText)}</span>
+        ${teamBadge(myTeam, { compact: true })}
       </div>
-      <h1 class="game-target-word">${escapeHtml(countdownTitle(game, countdown))}</h1>
+      <h1 class="game-target-word">${targetWordMarkup(game, countdown)}</h1>
       ${timerMarkup(countdown, { showChip: false })}
       <div class="last-chance-warning ${isUrgent ? "is-visible" : ""}" style="--alert-duration:${alertDuration}" aria-live="polite">
         <span>Last chance</span>
@@ -1954,7 +2356,7 @@ function renderGame() {
 
     <footer class="game-bottom-bar">
       <ul class="game-score-strip" aria-label="Scores">
-        ${gameScorePills(game.players)}
+        ${gameScorePills(game)}
       </ul>
       <div class="game-action-row">
         <button
@@ -1972,6 +2374,15 @@ function renderGame() {
           </svg>
           <span>${escapeHtml(torchLabel)}</span>
         </button>
+        <button
+          class="secondary-button game-skip-button ${skip?.voted ? "is-voted" : ""}"
+          id="skipRoundButton"
+          type="button"
+          title="${escapeHtml(skipButtonTitle(game))}"
+          ${skipDisabled ? "disabled" : ""}
+        >
+          ${escapeHtml(skipButtonLabel(game))}
+        </button>
         <button class="primary-button game-shutter-button" id="submitPhotoButton" type="button" ${cameraDisabled ? "disabled" : ""}>
           ${cameraState.sending ? "Checking..." : "Snap and verify"}
         </button>
@@ -1980,28 +2391,32 @@ function renderGame() {
   `;
 
   document.querySelector("#submitPhotoButton").addEventListener("click", submitPhoto);
+  document.querySelector("#skipRoundButton")?.addEventListener("click", voteSkipRound);
   document.querySelector("#toggleTorchButton")?.addEventListener("click", toggleTorch);
   document.querySelector("#gameMenuButton")?.addEventListener("click", openGameMenu);
+  document.querySelector("#playTargetAudioButton")?.addEventListener("click", playTargetAudio);
   attachCameraStream();
 }
 
 function renderEnd() {
   const game = state.game;
   const isOwner = game.me?.id === game.ownerPlayerId;
+  const winnerName = game.winner?.username || game.winner?.name || "Game complete";
+  const finalRows = game.teamUpEnabled ? teamScoreRows(game.teamScores || []) : playerRows(game.players);
   app.innerHTML = `
     <section class="screen end-layout">
       <div class="stack">
         ${renderNotice()}
         <div class="winner-banner">
           <span class="status-chip">${game.winner ? "winner" : "ended"}</span>
-          <h1>${escapeHtml(game.winner?.username || "Game complete")}</h1>
+          <h1>${escapeHtml(winnerName)}</h1>
         </div>
         ${isOwner ? `<button class="primary-button" id="restartButton" type="button">New game with group</button>` : ""}
         <button class="secondary-button" id="leaveGameButton" type="button">Leave game</button>
       </div>
       <aside class="compact-panel stack">
-        <h2>Final Scores</h2>
-        <ul class="score-list">${playerRows(game.players)}</ul>
+        <h2>${game.teamUpEnabled ? "Final Team Leaderboard" : "Final Scores"}</h2>
+        <ul class="score-list">${finalRows}</ul>
       </aside>
     </section>
   `;
@@ -2091,6 +2506,26 @@ async function submitPhoto() {
   render();
 }
 
+async function voteSkipRound() {
+  const challengeId = state.game?.currentRound?.id || "";
+  if (!challengeId) {
+    showMessage("That challenge has already moved on.", "warning");
+    return;
+  }
+
+  const response = await emitAck("skip_round", {
+    gameId: state.game.id,
+    challengeId
+  });
+  if (response.ignored) {
+    render();
+    return;
+  }
+  if (!response.ok) {
+    showMessage(response.error || "Could not vote to skip.", "danger");
+  }
+}
+
 async function openLeaderboard() {
   leaderboardDialog.showModal();
   if (!state.game) {
@@ -2098,8 +2533,9 @@ async function openLeaderboard() {
     return;
   }
 
-  leaderboardContent.innerHTML = state.game.players.length
-    ? `<ol class="score-list">${groupScoreRows(state.game.players)}</ol>`
+  const rows = leaderboardRows(state.game);
+  leaderboardContent.innerHTML = rows
+    ? `<ol class="score-list">${rows}</ol>`
     : `<p class="empty-state">No players in this group yet.</p>`;
 }
 
@@ -2125,15 +2561,17 @@ socket.on("game_state", (game) => {
   render();
 });
 
-socket.on("round_started", ({ item, challengeId }) => {
+socket.on("round_started", ({ item, challengeId, languageCode, audioUrl }) => {
   cameraDebug("socket", "round_started", {
     challengeId,
     item,
+    languageCode,
+    hasAudio: Boolean(audioUrl),
     camera: describeCameraVideo()
   });
   clearPendingSubmit();
   state.notice = "";
-  pushNotification(`Find ${item}.`, "target");
+  pushNotification(`Find ${languageCode ? `[${languageCode}] ` : ""}${item}.`, "target");
 });
 
 socket.on("round_result", (result) => {
@@ -2177,7 +2615,7 @@ socket.on("capture_notice", (result) => {
 
 socket.on("game_ended", ({ winner, message }) => {
   clearPendingSubmit();
-  state.notice = message || (winner ? `${winner.username} wins.` : "Game ended.");
+  state.notice = message || (winner ? `${winner.username || winner.name} wins.` : "Game ended.");
   playGameEndedSound(state.game?.id || "");
   render();
 });
@@ -2186,8 +2624,8 @@ socket.on("notice", ({ message }) => {
   showMessage(message);
 });
 
-socket.on("left_game", ({ message }) => {
-  resetLocalGame(message || "You left the game.");
+socket.on("left_game", ({ message, preserveSession = false }) => {
+  resetLocalGame(message || "You left the game.", { preserveSession });
 });
 
 leaderboardButton.addEventListener("click", openLeaderboard);

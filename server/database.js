@@ -41,11 +41,16 @@ async function ensureSchema(pool) {
       player_id TEXT NOT NULL,
       player_name TEXT NOT NULL,
       score INTEGER NOT NULL DEFAULT 0,
+      team_id TEXT,
+      team_name TEXT,
       is_owner BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       PRIMARY KEY (game_id, player_id)
     );
   `);
+
+  await pool.query("ALTER TABLE game_scores ADD COLUMN IF NOT EXISTS team_id TEXT;");
+  await pool.query("ALTER TABLE game_scores ADD COLUMN IF NOT EXISTS team_name TEXT;");
 }
 
 export async function createDatabase(config, logger = console) {
@@ -95,21 +100,23 @@ export async function createDatabase(config, logger = console) {
               winner_id = EXCLUDED.winner_id,
               winner_name = EXCLUDED.winner_name;
           `,
-          [result.gameId, result.roundsPlayed, result.winner?.id || null, result.winner?.username || null]
+          [result.gameId, result.roundsPlayed, result.winner?.id || null, result.winner?.username || result.winner?.name || null]
         );
 
         for (const player of result.players) {
           await client.query(
             `
-              INSERT INTO game_scores (game_id, player_id, player_name, score, is_owner)
-              VALUES ($1, $2, $3, $4, $5)
+              INSERT INTO game_scores (game_id, player_id, player_name, score, team_id, team_name, is_owner)
+              VALUES ($1, $2, $3, $4, $5, $6, $7)
               ON CONFLICT (game_id, player_id)
               DO UPDATE SET
                 player_name = EXCLUDED.player_name,
                 score = EXCLUDED.score,
+                team_id = EXCLUDED.team_id,
+                team_name = EXCLUDED.team_name,
                 is_owner = EXCLUDED.is_owner;
             `,
-            [result.gameId, player.id, player.username, player.score, player.isOwner]
+            [result.gameId, player.id, player.username, player.score, player.teamId || null, player.teamName || null, player.isOwner]
           );
         }
         await client.query("COMMIT");

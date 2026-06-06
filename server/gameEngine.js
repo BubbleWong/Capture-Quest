@@ -2,6 +2,59 @@ import crypto from "node:crypto";
 
 export const crockfordBase32Alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 const gameCodeLength = 6;
+const challengeLanguages = new Map([
+  ["ar", "Arabic"],
+  ["zh-hans-yue", "Chinese simplified (Cantonese)"],
+  ["zh-hans-cmn", "Chinese simplified (Mandarin)"],
+  ["zh-hant-yue", "Chinese traditional (Cantonese)"],
+  ["zh-hant-cmn", "Chinese traditional (Mandarin)"],
+  ["en", "English"],
+  ["fr", "French"],
+  ["de", "German"],
+  ["hi", "Hindi"],
+  ["it", "Italian"],
+  ["ja", "Japanese"],
+  ["ko", "Korean"],
+  ["pt", "Portuguese"],
+  ["ru", "Russian"],
+  ["es", "Spanish"],
+  ["zh", "Chinese simplified (Mandarin)"],
+  ["zh-hant", "Chinese traditional (Mandarin)"],
+  ["zh-hans-cn-cmn", "Chinese simplified (Mandarin)"],
+  ["zh-hans-cn-yue", "Chinese simplified (Cantonese)"],
+  ["zh-hant-tw-cmn", "Chinese traditional (Mandarin)"],
+  ["zh-hant-hk-yue", "Chinese traditional (Cantonese)"]
+]);
+export const funnyAnimalUsernames = [
+  "Red Monkey",
+  "Speedy Snail",
+  "Giant Ant",
+  "Herbivore Lion",
+  "Turbo Sloth",
+  "Tiny Elephant",
+  "Sleepy Cheetah",
+  "Polite Shark",
+  "Disco Owl",
+  "Noodle Panda",
+  "Pocket Rhino",
+  "Fancy Frog",
+  "Wobbly Walrus",
+  "Royal Duck",
+  "Cosmic Hamster",
+  "Detective Otter",
+  "Spicy Koala",
+  "Sneaky Turtle",
+  "Moon Moose",
+  "Bouncy Beaver",
+  "Professor Goose",
+  "Velvet Crab",
+  "Lucky Gecko",
+  "Dizzy Dolphin"
+];
+const teamDefinitions = [
+  { id: "red", name: "Red Team", color: "#ff4f5e" },
+  { id: "blue", name: "Blue Team", color: "#4b7dff" }
+];
 
 export function encodeCrockfordBase32(value, minLength = 1) {
   if (!Number.isSafeInteger(value) || value < 0) {
@@ -51,15 +104,58 @@ function cleanUsername(username, fallback = "Player") {
   return cleaned || fallback;
 }
 
+function randomFunnyAnimalUsername() {
+  return funnyAnimalUsernames[crypto.randomInt(funnyAnimalUsernames.length)];
+}
+
+function usernameExists(game, username) {
+  return [...game.players.values()].some((player) => usernamesMatch(player.username, username));
+}
+
+function randomAvailableFunnyAnimalUsername(game) {
+  const availableNames = funnyAnimalUsernames.filter((username) => !usernameExists(game, username));
+  if (availableNames.length) return availableNames[crypto.randomInt(availableNames.length)];
+
+  for (;;) {
+    const username = `${randomFunnyAnimalUsername()} ${crypto.randomInt(10, 100)}`;
+    if (!usernameExists(game, username)) return username;
+  }
+}
+
 function usernamesMatch(first, second) {
   return first.localeCompare(second, undefined, { sensitivity: "accent" }) === 0;
 }
 
+function cleanClientId(clientId) {
+  const cleaned = String(clientId || "").trim().toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(cleaned)
+    ? cleaned
+    : "";
+}
+
+function cleanBoolean(value) {
+  return value === true || value === "true" || value === "on" || value === "1";
+}
+
+function cleanChallengeLanguage(value) {
+  const code = String(value || "en").trim().toLowerCase();
+  return challengeLanguages.has(code) ? code : "en";
+}
+
+function challengeLanguageName(code) {
+  return challengeLanguages.get(cleanChallengeLanguage(code)) || "English";
+}
+
+function challengeLanguageDisplayCode(code) {
+  return cleanChallengeLanguage(code).toUpperCase();
+}
+
 function cleanChallengeItem(item) {
   return String(item || "")
+    .normalize("NFKC")
     .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9 -]/g, "")
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}\p{M} -]/gu, "")
     .replace(/\s+/g, " ")
     .slice(0, 48);
 }
@@ -100,14 +196,18 @@ function challengeKey(item) {
   return cleanChallengeItem(item).split(" ").map(normalizeChallengeWord).join(" ");
 }
 
-function publicPlayer(player) {
+function publicPlayer(player, game = null) {
+  const team = teamForPlayer(game, player);
   return {
     id: player.id,
     username: player.username,
     score: player.score,
     ready: player.ready,
     isOwner: player.isOwner,
-    connected: player.connected
+    connected: player.connected,
+    teamId: team?.id || null,
+    teamName: team?.name || "",
+    teamColor: team?.color || ""
   };
 }
 
@@ -117,12 +217,111 @@ function topPlayers(players) {
   return sorted.filter((player) => player.score === topScore);
 }
 
+function createTeams(enabled) {
+  return enabled ? teamDefinitions.map((team) => ({ ...team })) : [];
+}
+
+function teamForPlayer(game, player) {
+  if (!game || !player?.teamId) return null;
+  return game.teams.find((team) => team.id === player.teamId) || teamDefinitions.find((team) => team.id === player.teamId);
+}
+
+function teamScores(game) {
+  if (!game?.teamUpEnabled) return [];
+  const scores = new Map(
+    game.teams.map((team) => [
+      team.id,
+      {
+        ...team,
+        score: 0,
+        players: 0,
+        connectedPlayers: 0
+      }
+    ])
+  );
+
+  for (const player of game.players.values()) {
+    const score = scores.get(player.teamId);
+    if (!score) continue;
+    score.score += player.score;
+    score.players += 1;
+    if (player.connected) score.connectedPlayers += 1;
+  }
+
+  return [...scores.values()];
+}
+
+function activeTeamScores(game) {
+  return teamScores(game).filter((team) => team.players > 0);
+}
+
+function topTeams(game) {
+  const sorted = activeTeamScores(game).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+  const topScore = sorted[0]?.score ?? 0;
+  return sorted.filter((team) => team.score === topScore);
+}
+
+function connectedPlayers(game) {
+  return [...(game?.players?.values?.() || [])].filter((player) => player.connected);
+}
+
+function skipVoteSummary(game, round) {
+  const votes = round?.skipVotes || new Set();
+  if (!game || !round) {
+    return {
+      mode: "player",
+      votes: 0,
+      eligible: 0,
+      threshold: 1,
+      passed: false,
+      votedPlayerIds: []
+    };
+  }
+
+  if (!game.teamUpEnabled) {
+    const eligiblePlayers = connectedPlayers(game);
+    const voteCount = eligiblePlayers.filter((player) => votes.has(player.id)).length;
+    const threshold = Math.floor(eligiblePlayers.length / 2) + 1;
+    return {
+      mode: "player",
+      votes: voteCount,
+      eligible: eligiblePlayers.length,
+      threshold,
+      passed: voteCount >= threshold,
+      votedPlayerIds: [...votes]
+    };
+  }
+
+  const connectedByTeam = new Map();
+  for (const player of connectedPlayers(game)) {
+    if (!player.teamId) continue;
+    if (!connectedByTeam.has(player.teamId)) connectedByTeam.set(player.teamId, []);
+    connectedByTeam.get(player.teamId).push(player);
+  }
+
+  const eligibleTeams = [...connectedByTeam.entries()];
+  const completedTeamIds = eligibleTeams
+    .filter(([, players]) => players.length > 0 && players.every((player) => votes.has(player.id)))
+    .map(([teamId]) => teamId);
+  const threshold = Math.floor(eligibleTeams.length / 2) + 1;
+  return {
+    mode: "team",
+    votes: completedTeamIds.length,
+    eligible: eligibleTeams.length,
+    threshold,
+    passed: completedTeamIds.length >= threshold,
+    completedTeamIds,
+    votedPlayerIds: [...votes]
+  };
+}
+
 export class GameEngine {
-  constructor({ io, config, llm, database, logger = console }) {
+  constructor({ io, config, llm, database, audioCache = null, logger = console }) {
     this.io = io;
     this.config = config;
     this.llm = llm;
     this.database = database;
+    this.audioCache = audioCache;
     this.logger = logger;
     this.games = new Map();
     this.socketSessions = new Map();
@@ -131,22 +330,30 @@ export class GameEngine {
   createGame(socket, payload = {}) {
     this.detachSocket(socket);
     const gameId = createGameId(this.games);
-    const player = this.createPlayer(socket, payload.username || "Host", true);
+    const player = this.createPlayer(socket, payload.username, true, payload.clientId);
     const initialChallengeInput = cleanInitialChallengeInput(
       payload.initialChallengeInput || payload.initialPrompt || payload.initialWordList || payload.initialItems
     );
+    const challengeLanguage = cleanChallengeLanguage(payload.challengeLanguage);
+    const teamUpEnabled = cleanBoolean(payload.teamUpEnabled);
     const game = {
       id: gameId,
       status: "lobby",
       ownerPlayerId: player.id,
       players: new Map([[player.id, player]]),
+      teamUpEnabled,
+      teams: createTeams(teamUpEnabled),
       itemQueue: [],
       initialChallengeInput,
+      challengeLanguage,
       initialChallengePrepared: false,
       usedItems: [],
       roundNumber: 0,
       roundsAwarded: 0,
       currentRound: null,
+      submissionQueue: [],
+      submissionQueueEpoch: 0,
+      verificationProcessing: false,
       lastResult: null,
       winner: null,
       createdAt: Date.now(),
@@ -171,17 +378,24 @@ export class GameEngine {
     if (!gameId) return { error: "Game code is not valid." };
     const game = this.games.get(gameId);
     if (!game) return { error: "Game not found." };
+
+    const clientId = cleanClientId(payload.clientId);
+    const username = cleanUsername(payload.username, "") || randomAvailableFunnyAnimalUsername(game);
+    const existingPlayer = this.findPlayerByIdentity(game, username, clientId);
+    if (existingPlayer) {
+      this.attachPlayerToSocket(game, existingPlayer, socket);
+      return { game, player: existingPlayer };
+    }
+
     if (game.status !== "lobby") return { error: "This game has already started." };
     if (game.players.size >= this.config.game.maxPlayers) return { error: "This game is full." };
 
-    const username = cleanUsername(payload.username, "Player");
-    const nameExistsInGame = [...game.players.values()].some((player) => usernamesMatch(player.username, username));
-    if (nameExistsInGame) {
+    if (usernameExists(game, username)) {
       return { error: "That name is already used in this game. Try another name." };
     }
 
     this.detachSocket(socket);
-    const player = this.createPlayer(socket, username, false);
+    const player = this.createPlayer(socket, username, false, clientId);
     game.players.set(player.id, player);
     socket.join(gameId);
     this.socketSessions.set(socket.id, { gameId, playerId: player.id });
@@ -194,18 +408,12 @@ export class GameEngine {
     const gameId = normalizeGameCode(payload.gameId);
     if (!gameId) return { error: "Session not found." };
     const game = this.games.get(gameId);
-    const player = game?.players.get(payload.playerId);
+    const username = cleanUsername(payload.username, "");
+    const clientId = cleanClientId(payload.clientId);
+    const player = game?.players.get(payload.playerId) || this.findPlayerByIdentity(game, username, clientId);
     if (!game || !player) return { error: "Session not found." };
 
-    this.detachSocket(socket);
-    if (player.socketId && player.socketId !== socket.id) {
-      this.socketSessions.delete(player.socketId);
-    }
-    player.socketId = socket.id;
-    player.connected = true;
-    socket.join(gameId);
-    this.socketSessions.set(socket.id, { gameId, playerId: player.id });
-    this.emitState(game);
+    this.attachPlayerToSocket(game, player, socket);
     return { game, player };
   }
 
@@ -225,8 +433,9 @@ export class GameEngine {
     const { game, player } = session;
     if (game.ownerPlayerId !== player.id) return { error: "Only the game owner can start." };
     if (game.status !== "lobby") return { error: "The game is not in the lobby." };
-    if (!this.allConnectedPlayersReady(game)) return { error: "All connected players must be ready." };
+    if (!this.allPlayersReady(game)) return { error: "Every player must be ready before the game can start." };
 
+    this.assignBalancedTeams(game);
     game.status = "loading";
     game.startedAt = Date.now();
     game.endedAt = null;
@@ -254,6 +463,8 @@ export class GameEngine {
     game.roundNumber = 0;
     game.roundsAwarded = 0;
     game.currentRound = null;
+    game.submissionQueue = [];
+    game.submissionQueueEpoch += 1;
     game.lastResult = null;
     game.winner = null;
     game.nextRoundAt = null;
@@ -264,6 +475,9 @@ export class GameEngine {
     game.itemQueue = [];
     game.initialChallengeInput = "";
     game.initialChallengePrepared = true;
+    for (const currentPlayer of game.players.values()) {
+      currentPlayer.teamId = null;
+    }
     this.emitState(game);
     return { game, player };
   }
@@ -398,7 +612,7 @@ export class GameEngine {
       return { error: "Photo data was not received." };
     }
 
-    round.submissions.push({
+    game.submissionQueue.push({
       challengeId,
       playerId: player.id,
       imageDataUrl: payload.imageDataUrl,
@@ -408,10 +622,50 @@ export class GameEngine {
       status: "checking",
       message: `Checking ${round.item}...`
     });
-    this.processSubmissions(game).catch((error) => {
-      this.logger.warn(`Submission processing failed: ${error.message}`);
+    this.processSubmissionQueue(game).catch((error) => {
+      this.logger.warn(`Submission queue failed: ${error.message}`);
     });
     return { ok: true };
+  }
+
+  voteSkipRound(socket, payload = {}) {
+    const session = this.getSession(socket, payload.gameId);
+    if (!session) return { error: "You are not in this game." };
+    const { game, player } = session;
+    const round = game.currentRound;
+    const challengeId = String(payload.challengeId || "").trim();
+    if (game.status !== "running" || !round || round.status !== "active" || round.id !== challengeId) {
+      return { ok: true, ignored: true };
+    }
+
+    if (!round.skipVotes) round.skipVotes = new Set();
+    if (round.skipVotes.has(player.id)) {
+      return { ok: true, skip: skipVoteSummary(game, round) };
+    }
+    round.skipVotes.add(player.id);
+    const summary = skipVoteSummary(game, round);
+    const team = teamForPlayer(game, player);
+    const unit = summary.mode === "team" ? "team" : "vote";
+    const unitSuffix = summary.votes === 1 ? "" : "s";
+    this.io.to(game.id).emit("capture_notice", {
+      status: "skip",
+      playerId: player.id,
+      username: player.username,
+      teamId: team?.id || null,
+      teamName: team?.name || "",
+      item: round.item,
+      skip: summary,
+      message: team
+        ? `${player.username} from ${team.name.toLowerCase()} voted to skip ${round.item}. ${summary.votes}/${summary.threshold} ${unit}${unitSuffix}.`
+        : `${player.username} voted to skip ${round.item}. ${summary.votes}/${summary.threshold} ${unit}${unitSuffix}.`
+    });
+
+    if (summary.passed) {
+      this.skipCurrentRound(game, summary);
+    } else {
+      this.emitState(game);
+    }
+    return { ok: true, skip: summary };
   }
 
   handleDisconnect(socket) {
@@ -427,10 +681,12 @@ export class GameEngine {
   }
 
   getSnapshot(game, viewerPlayerId) {
-    const players = [...game.players.values()].map(publicPlayer);
-    const leaders = topPlayers([...game.players.values()]).map((player) => player.id);
-    const connectedPlayers = players.filter((player) => player.connected);
-    const allReady = connectedPlayers.length > 0 && connectedPlayers.every((player) => player.ready);
+    const players = [...game.players.values()].map((player) => publicPlayer(player, game));
+    const currentTeamScores = teamScores(game);
+    const leaders = game.teamUpEnabled
+      ? topTeams(game).map((team) => team.id)
+      : topPlayers([...game.players.values()]).map((player) => player.id);
+    const allReady = players.length > 0 && players.every((player) => player.ready);
     const viewer = game.players.get(viewerPlayerId);
 
     return {
@@ -438,6 +694,9 @@ export class GameEngine {
       status: game.status,
       ownerPlayerId: game.ownerPlayerId,
       players,
+      teamUpEnabled: game.teamUpEnabled,
+      teams: game.teams,
+      teamScores: currentTeamScores,
       maxPlayers: this.config.game.maxPlayers,
       roundNumber: game.roundNumber,
       roundsAwarded: game.roundsAwarded,
@@ -457,28 +716,66 @@ export class GameEngine {
         ? {
             id: game.currentRound.id,
             item: game.currentRound.item,
+            languageCode: game.currentRound.languageCode,
+            languageName: game.currentRound.languageName,
+            audioUrl: game.currentRound.audioUrl,
             status: game.currentRound.status,
             startedAt: game.currentRound.startedAt,
-            expiresAt: game.currentRound.expiresAt
+            expiresAt: game.currentRound.expiresAt,
+            skip: {
+              ...skipVoteSummary(game, game.currentRound),
+              voted: Boolean(game.currentRound.skipVotes?.has(viewerPlayerId))
+            }
           }
         : null,
       lastResult: game.lastResult,
-      winner: game.winner ? publicPlayer(game.winner) : null,
-      me: viewer ? publicPlayer(viewer) : null
+      winner: game.winner ? (game.teamUpEnabled ? game.winner : publicPlayer(game.winner, game)) : null,
+      me: viewer ? publicPlayer(viewer, game) : null
     };
   }
 
-  createPlayer(socket, username, isOwner) {
+  createPlayer(socket, username, isOwner, clientId = "") {
     return {
       id: crypto.randomUUID(),
+      clientId: cleanClientId(clientId),
       socketId: socket.id,
-      username: cleanUsername(username, isOwner ? "Host" : "Player"),
+      username: cleanUsername(username, randomFunnyAnimalUsername()),
       score: 0,
+      teamId: null,
       ready: false,
       isOwner,
       connected: true,
       joinedAt: Date.now()
     };
+  }
+
+  findPlayerByIdentity(game, username, clientId) {
+    if (!game || !clientId || !username) return null;
+    return (
+      [...game.players.values()].find(
+        (player) => player.clientId === clientId && usernamesMatch(player.username, username)
+      ) || null
+    );
+  }
+
+  attachPlayerToSocket(game, player, socket) {
+    this.detachSocket(socket);
+    if (player.socketId && player.socketId !== socket.id) {
+      const previousSocket = this.io.sockets?.sockets?.get(player.socketId);
+      previousSocket?.emit?.("left_game", {
+        gameId: game.id,
+        message: "You joined this game from another tab or device.",
+        preserveSession: true
+      });
+      previousSocket?.leave?.(game.id);
+      setTimeout(() => previousSocket?.disconnect?.(true), 50).unref();
+      this.socketSessions.delete(player.socketId);
+    }
+    player.socketId = socket.id;
+    player.connected = true;
+    socket.join(game.id);
+    this.socketSessions.set(socket.id, { gameId: game.id, playerId: player.id });
+    this.emitState(game);
   }
 
   getSession(socket, gameId) {
@@ -514,9 +811,32 @@ export class GameEngine {
     this.io.to(game.id).emit("notice", { message });
   }
 
-  allConnectedPlayersReady(game) {
-    const connectedPlayers = [...game.players.values()].filter((player) => player.connected);
-    return connectedPlayers.length > 0 && connectedPlayers.every((player) => player.ready);
+  allPlayersReady(game) {
+    const players = [...game.players.values()];
+    return players.length > 0 && players.every((player) => player.ready);
+  }
+
+  assignBalancedTeams(game) {
+    if (!game.teamUpEnabled) {
+      for (const player of game.players.values()) {
+        player.teamId = null;
+      }
+      return;
+    }
+
+    const teams = [...game.teams];
+    const players = [...game.players.values()];
+    for (let index = teams.length - 1; index > 0; index -= 1) {
+      const nextIndex = crypto.randomInt(index + 1);
+      [teams[index], teams[nextIndex]] = [teams[nextIndex], teams[index]];
+    }
+    for (let index = players.length - 1; index > 0; index -= 1) {
+      const nextIndex = crypto.randomInt(index + 1);
+      [players[index], players[nextIndex]] = [players[nextIndex], players[index]];
+    }
+    players.forEach((player, index) => {
+      player.teamId = teams[index % teams.length]?.id || null;
+    });
   }
 
   async prepareInitialChallengeQueue(game) {
@@ -529,6 +849,7 @@ export class GameEngine {
       const items = await this.llm.prepareInitialItems({
         input,
         count: this.config.game.itemBatchSize,
+        language: challengeLanguageName(game.challengeLanguage),
         previousItems: [...game.usedItems],
         queuedItems: [...game.itemQueue]
       });
@@ -569,6 +890,7 @@ export class GameEngine {
     for (let attempt = 0; game.itemQueue.length < minimumCount && attempt < 4; attempt += 1) {
       const items = await this.llm.generateItems({
         count: this.config.game.itemBatchSize,
+        language: challengeLanguageName(game.challengeLanguage),
         previousItems: [...game.usedItems],
         queuedItems: [...game.itemQueue]
       });
@@ -652,23 +974,45 @@ export class GameEngine {
       return;
     }
 
+    const languageCode = challengeLanguageDisplayCode(game.challengeLanguage);
+    const languageName = challengeLanguageName(game.challengeLanguage);
+    let audioUrl = "";
+    if (this.audioCache?.enabled) {
+      game.status = "loading";
+      this.emitState(game);
+      try {
+        audioUrl = await this.audioCache.prepareAudio({
+          item,
+          languageCode: cleanChallengeLanguage(game.challengeLanguage),
+          languageName
+        });
+      } catch (error) {
+        this.logger.warn(`Challenge audio preparation failed: ${error.message}`);
+      }
+    }
+
     this.rememberPresentedChallenge(game, item);
     game.status = "running";
     game.roundNumber += 1;
     game.currentRound = {
       id: crypto.randomUUID(),
       item,
+      languageCode,
+      languageName,
+      audioUrl,
       status: "active",
-      submissions: [],
-      processing: false,
       startedAt: Date.now(),
-      expiresAt: Date.now() + this.config.game.objectTimeoutMs
+      expiresAt: Date.now() + this.config.game.objectTimeoutMs,
+      skipVotes: new Set()
     };
     game.lastResult = null;
 
     this.io.to(game.id).emit("round_started", {
       challengeId: game.currentRound.id,
       item,
+      languageCode,
+      languageName,
+      audioUrl,
       roundNumber: game.roundNumber,
       expiresAt: game.currentRound.expiresAt
     });
@@ -687,53 +1031,102 @@ export class GameEngine {
     }
   }
 
-  async processSubmissions(game) {
-    const round = game.currentRound;
-    if (!round || round.processing || round.status !== "active") return;
-    const roundId = round.id;
-    round.processing = true;
+  async processSubmissionQueue(game) {
+    if (game.verificationProcessing) return;
+    game.verificationProcessing = true;
+    const queueEpoch = game.submissionQueueEpoch;
 
-    while (round.submissions.length > 0 && round.status === "active" && game.status === "running") {
-      const submission = round.submissions.shift();
-      if (submission.challengeId !== roundId) continue;
-      const player = game.players.get(submission.playerId);
-      if (!player || !player.connected) continue;
+    try {
+      while (game.submissionQueueEpoch === queueEpoch && game.submissionQueue.length > 0) {
+        const submission = game.submissionQueue.shift();
+        const round = game.currentRound;
+        if (game.status !== "running" || !round || round.status !== "active") {
+          this.dropQueuedSubmissionsForChallenge(game, submission.challengeId);
+          continue;
+        }
+        if (submission.challengeId !== round.id) continue;
 
-      const result = await this.llm.verifyPhoto({
-        item: round.item,
-        imageDataUrl: submission.imageDataUrl
-      });
+        const player = game.players.get(submission.playerId);
+        if (!player || !player.connected) continue;
 
-      if (game.status !== "running" || game.currentRound?.id !== roundId || round.status !== "active") break;
+        let result;
+        try {
+          result = await this.llm.verifyPhoto({
+            item: round.item,
+            language: challengeLanguageName(game.challengeLanguage),
+            imageDataUrl: submission.imageDataUrl
+          });
+        } catch (error) {
+          this.logger.warn(`Photo verification failed: ${error.message}`);
+          if (game.submissionQueueEpoch !== queueEpoch) return;
+          this.io.to(player.socketId).emit("submission_result", {
+            status: "error",
+            message: "This photo could not be verified. Try again."
+          });
+          continue;
+        }
+        if (game.submissionQueueEpoch !== queueEpoch) return;
 
-      if (result.match) {
-        await this.awardPoint(game, player, result);
-        break;
+        const currentRound = game.currentRound;
+        if (
+          game.status !== "running" ||
+          !currentRound ||
+          currentRound.id !== submission.challengeId ||
+          currentRound.status !== "active"
+        ) {
+          this.dropQueuedSubmissionsForChallenge(game, submission.challengeId);
+          continue;
+        }
+
+        if (result.match) {
+          this.dropQueuedSubmissionsForChallenge(game, submission.challengeId);
+          await this.awardPoint(game, player, result);
+          continue;
+        }
+
+        this.penalizeMiss(game, player, result);
       }
-
-      this.penalizeMiss(game, player, result);
+    } finally {
+      game.verificationProcessing = false;
+      if (game.submissionQueue.length > 0) {
+        this.processSubmissionQueue(game).catch((error) => {
+          this.logger.warn(`Submission queue failed: ${error.message}`);
+        });
+      }
     }
+  }
 
-    round.processing = false;
+  dropQueuedSubmissionsForChallenge(game, challengeId) {
+    game.submissionQueue = game.submissionQueue.filter((submission) => submission.challengeId !== challengeId);
   }
 
   penalizeMiss(game, player, result) {
     const round = game.currentRound;
-    const message = `${player.username} did not match ${round?.item || "the target"}. ${result.reason || "Not a match yet."} -1 point.`;
+    const team = teamForPlayer(game, player);
+    const message = team
+      ? `${player.username} from ${team.name.toLowerCase()} did not match ${round?.item || "the target"}. ${result.reason || "Not a match yet."} -1 point.`
+      : `${player.username} did not match ${round?.item || "the target"}. ${result.reason || "Not a match yet."} -1 point.`;
     player.score -= 1;
+    const currentTeamScore = teamScores(game).find((score) => score.id === team?.id)?.score ?? null;
     this.io.to(player.socketId).emit("submission_result", {
       status: "miss",
       penalty: -1,
       score: player.score,
+      teamId: team?.id || null,
+      teamName: team?.name || "",
+      teamScore: currentTeamScore,
       message
     });
     this.io.to(game.id).emit("capture_notice", {
       status: "miss",
       playerId: player.id,
       username: player.username,
+      teamId: team?.id || null,
+      teamName: team?.name || "",
       item: round?.item || "",
       penalty: -1,
       score: player.score,
+      teamScore: currentTeamScore,
       message
     });
     this.emitState(game);
@@ -745,17 +1138,42 @@ export class GameEngine {
 
     this.clearRoundTimer(game);
     round.status = "found";
+    this.dropQueuedSubmissionsForChallenge(game, round.id);
     player.score += 1;
     game.roundsAwarded += 1;
+    const team = teamForPlayer(game, player);
+    const currentTeamScore = teamScores(game).find((score) => score.id === team?.id)?.score ?? null;
     game.lastResult = {
       status: "found",
       item: round.item,
       playerId: player.id,
       username: player.username,
+      teamId: team?.id || null,
+      teamName: team?.name || "",
+      teamScore: currentTeamScore,
       confidence: result.confidence,
-      message: `${player.username} found ${round.item}.`
+      message: team ? `${player.username} from ${team.name.toLowerCase()} found ${round.item}.` : `${player.username} found ${round.item}.`
     };
 
+    this.io.to(game.id).emit("round_result", game.lastResult);
+    this.scheduleNextStep(game);
+  }
+
+  skipCurrentRound(game, summary = null) {
+    const round = game.currentRound;
+    if (!round || round.status !== "active") return;
+
+    this.clearRoundTimer(game);
+    round.status = "skipped";
+    this.dropQueuedSubmissionsForChallenge(game, round.id);
+    game.submissionQueueEpoch += 1;
+    const skip = summary || skipVoteSummary(game, round);
+    game.lastResult = {
+      status: "skipped",
+      item: round.item,
+      skip,
+      message: `Skipped ${round.item}.`
+    };
     this.io.to(game.id).emit("round_result", game.lastResult);
     this.scheduleNextStep(game);
   }
@@ -767,6 +1185,7 @@ export class GameEngine {
 
     this.clearRoundTimer(game);
     round.status = "expired";
+    this.dropQueuedSubmissionsForChallenge(game, round.id);
     game.lastResult = {
       status: "expired",
       item: round.item,
@@ -793,6 +1212,7 @@ export class GameEngine {
 
   shouldEndGame(game) {
     if (game.roundsAwarded < this.config.game.normalRounds) return false;
+    if (game.teamUpEnabled) return topTeams(game).length === 1;
     return topPlayers([...game.players.values()]).length === 1;
   }
 
@@ -801,31 +1221,36 @@ export class GameEngine {
     game.status = "ended";
     game.endedAt = Date.now();
     game.currentRound = null;
+    game.submissionQueue = [];
+    game.submissionQueueEpoch += 1;
     game.pauseState = null;
-    const leaders = topPlayers([...game.players.values()]);
+    const leaders = game.teamUpEnabled ? topTeams(game) : topPlayers([...game.players.values()]);
     game.winner = options.forced ? null : leaders[0] || null;
     game.lastResult = {
       status: "ended",
       item: null,
-      username: game.winner?.username || "",
-      message: options.message || (game.winner ? `${game.winner.username} wins.` : "Game ended.")
+      username: game.winner?.username || game.winner?.name || "",
+      message: options.message || (game.winner ? `${game.winner.username || game.winner.name} wins.` : "Game ended.")
     };
 
-    const players = [...game.players.values()].map(publicPlayer);
+    const players = [...game.players.values()].map((player) => publicPlayer(player, game));
+    const teams = teamScores(game);
     try {
       await this.database.saveGameResult({
         gameId: game.id,
         roundsPlayed: game.roundsAwarded,
-        winner: game.winner ? publicPlayer(game.winner) : null,
-        players
+        winner: game.winner ? (game.teamUpEnabled ? game.winner : publicPlayer(game.winner, game)) : null,
+        players,
+        teams
       });
     } catch (error) {
       this.logger.warn(`Saving game result failed: ${error.message}`);
     }
 
     this.io.to(game.id).emit("game_ended", {
-      winner: game.winner ? publicPlayer(game.winner) : null,
+      winner: game.winner ? (game.teamUpEnabled ? game.winner : publicPlayer(game.winner, game)) : null,
       players,
+      teams,
       message: game.lastResult.message
     });
     this.emitState(game);

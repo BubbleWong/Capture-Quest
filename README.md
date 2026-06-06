@@ -1,55 +1,129 @@
 # Capture Quest
 
-Capture Quest is a realtime camera scavenger hunt PWA. One player creates a game, shares the QR code or game ID, and up to 20 players race to photograph kid-safe objects around a home or school.
+Capture Quest is a realtime camera scavenger hunt PWA for homes, classrooms, parties, and small groups. One player creates a game, shares a QR code or Game ID, and up to 20 players race to photograph safe everyday objects before the clock runs out.
+
+The app runs on a Node.js backend with Socket.IO, a modern browser frontend, optional Postgres result storage, OpenRouter-powered object generation and image verification, and optional S3-backed pronunciation audio.
+
+## Features
+
+- Create or join games by QR code, URL, or Crockford Base32 Game ID.
+- Phone/tablet camera gameplay with client-side image downscaling before upload.
+- Owner controls for start, pause, end, and restart with the same group.
+- Player ready checks, reconnect support, local player UUIDs, and one online session per player.
+- AI-generated object rounds with optional owner-provided word list or prompt guide.
+- Language-aware challenges, language tags, and optional pronunciation audio.
+- Sequential verification queues per game so only one photo is verified at a time in each game.
+- Miss penalties only for active, unsolved challenges; stale or already-solved submissions are ignored.
+- Optional team-up mode with red/blue team balancing and team scoreboards.
+- Lobby, in-game, and countdown music with per-user BGM mute stored in local storage.
+- Development HTTPS tunnel support for camera testing on iOS and Android.
 
 Game IDs use Crockford Base32. Player-entered codes accept lowercase letters, hyphens or spaces, `O` as `0`, and `I`/`L` as `1`.
 
-When creating a game, owners can leave the seed field blank for random AI-picked objects, enter a word list, or enter a guide for AI-generated objects. Seeded input is refined by AI into safe, camera-recognizable challenges before the game starts.
+## Requirements
 
-## Run
+- Node.js 20 or newer.
+- npm.
+- Optional: Postgres for persisted completed-game results.
+- Optional: OpenRouter API key for live object generation, image verification, and TTS.
+- Optional: S3-compatible storage for cached pronunciation audio.
+- Optional: `cloudflared` for HTTPS phone testing in development.
 
-1. Copy `config.sample.js` to `config.js`.
-2. Fill in Postgres and OpenRouter settings.
-3. Install dependencies and start the server:
+## Quick Start
 
 ```bash
 npm install
+cp config.sample.js config.js
 npm run dev
 ```
 
 Open `http://localhost:3000`.
 
+`config.js` is ignored by git. Keep all local credentials there or in environment variables.
+
 ## Configuration
 
-`config.js` is ignored by git. Environment variables can also override the local config:
+Every setting can be supplied in `config.js`; these environment variables can override local config values:
 
-- `POSTGRES_NODES`
-- `POSTGRES_USER`
-- `POSTGRES_PASSWORD`
-- `POSTGRES_DATABASE`
-- `CAPTURE_QUEST_MODE` (`development` or `production`)
-- `NODE_ENV` (`production` also enables production mode when `CAPTURE_QUEST_MODE` is unset)
-- `OPENROUTER_API_KEY`
-- `OPENROUTER_MODEL`
-- `OPENROUTER_VISION_MODEL`
-- `PUBLIC_BASE_URL`
-- `CLOUDFLARE_TUNNEL_ENABLED`
-- `CLOUDFLARE_TUNNEL_TOKEN`
-- `CLOUDFLARE_TUNNEL_DOMAIN`
-- `CLOUDFLARE_TUNNEL_URL`
-- `CLOUDFLARED_COMMAND`
+| Variable | Purpose |
+| --- | --- |
+| `CAPTURE_QUEST_MODE` | `development` or `production`. |
+| `NODE_ENV` | `production` also enables production mode when `CAPTURE_QUEST_MODE` is unset. |
+| `CAPTURE_QUEST_SKIP_LOCAL_CONFIG` | Ignore `config.js`, useful for isolated smoke tests. |
+| `PORT` | HTTP server port. |
+| `PUBLIC_BASE_URL` | Public origin used for generated game URLs and QR codes. |
+| `POSTGRES_NODES` | Comma-separated `host:port` Postgres nodes. |
+| `POSTGRES_USER` | Postgres user. |
+| `POSTGRES_PASSWORD` | Postgres password. |
+| `POSTGRES_DATABASE` | Postgres database name. |
+| `POSTGRES_SSL` | Enable Postgres SSL with `1`, `true`, `yes`, or `on`. |
+| `OPENROUTER_API_KEY` | OpenRouter key. |
+| `OPENROUTER_MODEL` | Object generation model. Default: `openai/gpt-5.4-mini`. |
+| `OPENROUTER_VISION_MODEL` | Photo verification model. Default: `google/gemini-3.1-flash-lite-preview`. |
+| `OPENROUTER_TTS_MODEL` | Pronunciation audio model. Default: `google/gemini-3.1-flash-tts-preview`. |
+| `OPENROUTER_TTS_VOICE` | TTS voice name. |
+| `OPENROUTER_TTS_RESPONSE_FORMAT` | TTS response format. |
+| `OPENROUTER_BASE_URL` | OpenRouter API base URL. |
+| `OPENROUTER_APP_TITLE` | App title sent to OpenRouter. |
+| `OPENROUTER_REFERER` | Referer sent to OpenRouter. |
+| `OPENROUTER_MOCK_WHEN_MISSING_KEY` | Accept local mock AI behavior when no OpenRouter key is configured. |
+| `S3_ENABLED` or `AWS_S3_ENABLED` | Enable S3-backed TTS cache. |
+| `AWS_ENDPOINT_URL` or `S3_ENDPOINT_URL` | S3-compatible endpoint. |
+| `AWS_DEFAULT_REGION` or `AWS_REGION` | S3 region. |
+| `AWS_ACCESS_KEY_ID` | S3 access key. |
+| `AWS_SECRET_ACCESS_KEY` | S3 secret key. |
+| `S3_BUCKET` or `AWS_S3_BUCKET` | TTS cache bucket. |
+| `S3_PUBLIC_BASE_URL` | Public URL prefix for cached TTS files. |
+| `S3_FORCE_PATH_STYLE` | Enable path-style S3 URLs. |
+| `CLOUDFLARE_TUNNEL_ENABLED` | Start a Cloudflare tunnel in development mode. |
+| `CLOUDFLARE_TUNNEL_TOKEN` | Cloudflare tunnel token. |
+| `CLOUDFLARE_TUNNEL_DOMAIN` | Tunnel hostname. |
+| `CLOUDFLARE_TUNNEL_URL` | Local origin passed to the tunnel. |
+| `CLOUDFLARED_COMMAND` | Path or command name for `cloudflared`. |
+| `CAPTURE_QUEST_LOG_GAME_EVENTS` | Enable compact socket event logs for debugging. |
 
-If Postgres is unavailable, completed scores are kept in memory for the current server run. If `OPENROUTER_API_KEY` is missing and `mockWhenMissingKey` is enabled, local development accepts submitted photos so the gameplay loop can be tested.
+If Postgres is unavailable, completed scores are stored in memory for the current server run. If `OPENROUTER_API_KEY` is missing and mock mode is enabled, local development uses deterministic fallback behavior so the gameplay loop can be tested without paid AI calls.
 
-The default OpenRouter model is `openai/gpt-5.4-mini`; override it with `openRouter.model` in `config.js` or `OPENROUTER_MODEL`. Photo verification uses `google/gemini-3.1-flash-lite-preview` by default; override it with `openRouter.visionModel` or `OPENROUTER_VISION_MODEL`.
+Pronunciation audio is generated before an object is announced when S3 and TTS are configured. Cache keys include the language code and object phrase, so repeated challenges can reuse existing files and send players only a public audio URL.
+
+## Testing
+
+```bash
+npm run check
+npm test
+npm run ci
+```
+
+- `npm run check` validates JavaScript syntax for server, client, service worker, smoke tests, and engine tests.
+- `npm test` runs deterministic game-logic tests with Node's built-in test runner.
+- `npm run ci` runs syntax checks and deterministic engine tests.
+- `npm run smoke` runs an optional live Socket.IO smoke test against `TEST_BASE_URL` or `http://localhost:3001`.
+
+More detail is in [docs/TESTING.md](docs/TESTING.md).
 
 ## HTTPS Phone Testing
 
-Camera access on phones requires HTTPS. Development testing uses `https://cq-dev.bubbleh.com`. To expose the local server through Cloudflare Tunnel, install `cloudflared`, then set `cloudflare.enabled`, `cloudflare.token`, and `cloudflare.domain` in `config.js`.
+Mobile camera access requires a secure context. `localhost` is secure on the same machine, but phones and tablets need HTTPS.
 
-The server starts and stops the Cloudflare tunnel only in development mode. Set `CAPTURE_QUEST_MODE=production` or `NODE_ENV=production` for production runs; production mode leaves tunnel management off even if local Cloudflare settings exist.
+For development, install `cloudflared`, enable the Cloudflare tunnel in `config.js`, and set the tunnel domain. The server starts and stops the tunnel only in development mode. Production mode never manages the development tunnel, even if Cloudflare settings exist.
 
-Set `publicBaseUrl` to the HTTPS domain, or leave it blank to use the configured development tunnel domain for generated game links and QR codes.
+Set `publicBaseUrl` to the HTTPS origin, or leave it blank to use the configured development tunnel domain for generated links and QR codes.
+
+## Project Structure
+
+```text
+public/              Frontend assets, scripts, styles, service worker, music.
+server/              Express server, Socket.IO events, game engine, AI, storage.
+scripts/             Smoke tests and automated test suites.
+prompts/             Prompt references and AI prompt notes.
+docs/                Testing and publishing notes.
+config.sample.js     Safe configuration template.
+config.js            Local secrets and deployment settings, ignored by git.
+```
+
+## Publishing
+
+Before publishing the repo, run `npm run ci`, review `git status`, and confirm `config.js` or other local secrets are not staged. See [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Music Credits
 
@@ -58,3 +132,7 @@ Bundled BGM files are converted to MP3 for browser compatibility. Source tracks:
 - Lobby: [Flowerbed Fields [Loop]](https://opengameart.org/content/flowerbed-fields-loop) by Zane Little Music, CC0.
 - In-game: [BooxBep Chiptune](https://opengameart.org/content/booxbep-chiptune) by Fupi, CC0.
 - Last 10 seconds: [Fast fight / battle music (looped)](https://opengameart.org/content/fast-fight-battle-music-looped) by XCVG, based on work by Ville Nousiainen, CC0.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).

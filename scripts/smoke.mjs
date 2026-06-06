@@ -49,19 +49,68 @@ function waitForState(states, predicate, timeoutMs = 12000) {
   });
 }
 
+function waitForSocketEvent(socket, event, timeoutMs = 8000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      socket.off(event, handleEvent);
+      reject(new Error(`Timed out waiting for ${event}.`));
+    }, timeoutMs);
+    function handleEvent(payload) {
+      clearTimeout(timer);
+      resolve(payload);
+    }
+    socket.once(event, handleEvent);
+  });
+}
+
 const socket = await connectSocket();
+let playerSocket = null;
+let rejoinedPlayerSocket = null;
 const states = [];
 socket.on("game_state", (state) => states.push(state));
 
 try {
-  const created = await emitAck(socket, "create_game", { username: "Smoke Tester" });
+  const ownerClientId = "10000000-0000-4000-8000-000000000001";
+  const playerClientId = "20000000-0000-4000-8000-000000000002";
+  const created = await emitAck(socket, "create_game", { username: "Smoke Tester", clientId: ownerClientId });
   assert.equal(created.ok, true);
   assert.match(created.gameId, /^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{6}$/);
   assert.equal(Boolean(created.qrCode), true);
 
   await waitForState(states, (state) => state.status === "lobby");
+  playerSocket = await connectSocket();
+  const joined = await emitAck(playerSocket, "join_game", {
+    gameId: created.gameId,
+    username: "Reconnect Tester",
+    clientId: playerClientId
+  });
+  assert.equal(joined.ok, true);
+  assert.notEqual(joined.playerId, created.playerId);
+
+  rejoinedPlayerSocket = await connectSocket();
+  const kickedPreviousSession = waitForSocketEvent(playerSocket, "left_game");
+  const previousSessionDisconnected = waitForSocketEvent(playerSocket, "disconnect");
+  const rejoined = await emitAck(rejoinedPlayerSocket, "join_game", {
+    gameId: created.gameId,
+    username: "Reconnect Tester",
+    clientId: playerClientId
+  });
+  assert.equal(rejoined.ok, true);
+  assert.equal(rejoined.playerId, joined.playerId);
+  const kickedMessage = await kickedPreviousSession;
+  assert.match(kickedMessage.message, /another tab or device/);
+  assert.equal(kickedMessage.preserveSession, true);
+  await previousSessionDisconnected;
+
   const ready = await emitAck(socket, "set_ready", { gameId: created.gameId, ready: true });
   assert.equal(ready.ok, true);
+
+  const blockedStart = await emitAck(socket, "start_game", { gameId: created.gameId });
+  assert.equal(blockedStart.ok, false);
+  assert.match(blockedStart.error, /Every player must be ready/);
+
+  const rejoinedReady = await emitAck(rejoinedPlayerSocket, "set_ready", { gameId: created.gameId, ready: true });
+  assert.equal(rejoinedReady.ok, true);
 
   const started = await emitAck(socket, "start_game", { gameId: created.gameId });
   assert.equal(started.ok, true);
@@ -101,5 +150,7 @@ try {
 
   console.log(`Smoke test passed against ${baseUrl}.`);
 } finally {
+  playerSocket?.disconnect();
+  rejoinedPlayerSocket?.disconnect();
   socket.disconnect();
 }
