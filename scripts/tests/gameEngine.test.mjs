@@ -216,6 +216,10 @@ test("uses a funny animal owner name when create-game username is blank", () => 
   assert.ok(funnyAnimalUsernames.includes(player.username));
 });
 
+test("keeps a broad funny animal username pool", () => {
+  assert.equal(funnyAnimalUsernames.length, 50);
+});
+
 test("uses an available funny animal player name when join-game username is blank", () => {
   const { engine, io } = createEngine();
   const owner = io.createSocket("owner");

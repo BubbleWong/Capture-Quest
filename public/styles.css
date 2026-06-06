@@ -401,6 +401,59 @@ button:disabled {
   width: 100%;
 }
 
+.name-picker {
+  align-items: stretch;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 46px;
+}
+
+.name-random-button {
+  align-items: center;
+  background: var(--yellow);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  box-shadow: 0 5px 0 rgba(23, 32, 51, 0.18);
+  color: var(--ink);
+  display: inline-flex;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0;
+  width: 46px;
+}
+
+.name-random-button svg {
+  display: block;
+  fill: none;
+  height: 23px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.3px;
+  width: 23px;
+}
+
+.name-random-button circle {
+  fill: currentColor;
+  stroke: none;
+}
+
+.text-input.is-random-picked {
+  animation: random-name-pop 0.28s ease;
+}
+
+@keyframes random-name-pop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.025) rotate(-0.6deg);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 .word-list-input {
   line-height: 1.35;
   min-height: 120px;

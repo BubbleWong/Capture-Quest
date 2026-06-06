@@ -59,7 +59,33 @@ const funnyAnimalUsernames = [
   "Professor Goose",
   "Velvet Crab",
   "Lucky Gecko",
-  "Dizzy Dolphin"
+  "Dizzy Dolphin",
+  "Captain Capybara",
+  "Pickle Penguin",
+  "Rocket Rabbit",
+  "Waffle Wombat",
+  "Marshmallow Bear",
+  "Bubble Tiger",
+  "Pancake Parrot",
+  "Wizard Llama",
+  "Ninja Narwhal",
+  "Cheddar Cheetah",
+  "Jellybean Jaguar",
+  "Mango Meerkat",
+  "Glitter Goat",
+  "Thunder Ferret",
+  "Banana Badger",
+  "Sassy Seahorse",
+  "Clever Camel",
+  "Hiccup Hippo",
+  "Tofu Toucan",
+  "Sunny Seal",
+  "Pepper Panther",
+  "Doodle Donkey",
+  "Cupcake Cobra",
+  "Zippy Zebra",
+  "Muffin Mole",
+  "Skater Squirrel"
 ];
 const cameraDebugEnabled =
   query.get("debugCamera") === "1" || localStorage.getItem("captureQuestDebugCamera") === "1";
@@ -80,6 +106,13 @@ const state = {
   prefillGameId: initialGameId,
   ownerNamePlaceholder: "",
   joinNamePlaceholder: ""
+};
+
+const nameShakeState = {
+  listening: false,
+  permissionGranted: false,
+  lastMagnitude: 0,
+  lastShakeAt: 0
 };
 
 const cameraState = {
@@ -551,6 +584,19 @@ function randomFunnyAnimalUsername() {
   return funnyAnimalUsernames[Math.floor(Math.random() * funnyAnimalUsernames.length)];
 }
 
+function nextFunnyAnimalUsername(currentName = "") {
+  const current = String(currentName || "").trim().toLowerCase();
+  const choices = funnyAnimalUsernames.filter((username) => username.toLowerCase() !== current);
+  if (!choices.length) return randomFunnyAnimalUsername();
+  const browserCrypto = globalThis.crypto;
+  if (browserCrypto?.getRandomValues) {
+    const bytes = new Uint32Array(1);
+    browserCrypto.getRandomValues(bytes);
+    return choices[bytes[0] % choices.length];
+  }
+  return choices[Math.floor(Math.random() * choices.length)];
+}
+
 function ensureOwnerNamePlaceholder() {
   if (!state.ownerNamePlaceholder) {
     state.ownerNamePlaceholder = randomFunnyAnimalUsername();
@@ -563,6 +609,101 @@ function ensureJoinNamePlaceholder() {
     state.joinNamePlaceholder = randomFunnyAnimalUsername();
   }
   return state.joinNamePlaceholder;
+}
+
+function randomNameIconMarkup() {
+  return `
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="4" y="4" width="16" height="16" rx="4"></rect>
+      <circle cx="9" cy="9" r="1.2"></circle>
+      <circle cx="15" cy="9" r="1.2"></circle>
+      <circle cx="12" cy="12" r="1.2"></circle>
+      <circle cx="9" cy="15" r="1.2"></circle>
+      <circle cx="15" cy="15" r="1.2"></circle>
+    </svg>
+  `;
+}
+
+function randomNameButtonMarkup(targetName) {
+  return `
+    <button
+      class="name-random-button"
+      type="button"
+      data-random-name-button="${escapeHtml(targetName)}"
+      aria-label="Choose random name"
+      title="Choose random name"
+    >${randomNameIconMarkup()}</button>
+  `;
+}
+
+function currentRandomNameInput() {
+  if (state.view !== "create" && state.view !== "join") return null;
+  return document.querySelector("[data-random-name-target]");
+}
+
+function chooseRandomName(input = currentRandomNameInput()) {
+  if (!input) return "";
+  const nextName = nextFunnyAnimalUsername(input.value || input.placeholder);
+  input.value = nextName;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.classList.remove("is-random-picked");
+  void input.offsetWidth;
+  input.classList.add("is-random-picked");
+  window.setTimeout(() => input.classList.remove("is-random-picked"), 320);
+  return nextName;
+}
+
+function handleNameShake(event) {
+  const input = currentRandomNameInput();
+  if (!input) return;
+
+  const acceleration = event.accelerationIncludingGravity || event.acceleration;
+  if (!acceleration) return;
+  const x = acceleration.x || 0;
+  const y = acceleration.y || 0;
+  const z = acceleration.z || 0;
+  const magnitude = Math.sqrt(x * x + y * y + z * z);
+  const delta = Math.abs(magnitude - nameShakeState.lastMagnitude);
+  nameShakeState.lastMagnitude = magnitude;
+
+  const now = Date.now();
+  if (delta < 14 || now - nameShakeState.lastShakeAt < 900) return;
+  nameShakeState.lastShakeAt = now;
+  chooseRandomName(input);
+  playNotificationSound("info");
+}
+
+async function startNameShakeListener({ requestPermission = false } = {}) {
+  const MotionEventClass = window.DeviceMotionEvent;
+  if (!MotionEventClass || typeof window.addEventListener !== "function") return false;
+  if (nameShakeState.listening) return true;
+
+  if (typeof MotionEventClass.requestPermission === "function" && !nameShakeState.permissionGranted) {
+    if (!requestPermission) return false;
+    try {
+      const permission = await MotionEventClass.requestPermission();
+      nameShakeState.permissionGranted = permission === "granted";
+      if (!nameShakeState.permissionGranted) return false;
+    } catch {
+      return false;
+    }
+  }
+
+  window.addEventListener("devicemotion", handleNameShake);
+  nameShakeState.listening = true;
+  return true;
+}
+
+function setupRandomNamePicker(inputName) {
+  const input = document.querySelector(`[name='${inputName}']`);
+  const button = document.querySelector(`[data-random-name-button='${inputName}']`);
+  if (!input || !button) return;
+
+  button.addEventListener("click", () => {
+    chooseRandomName(input);
+    startNameShakeListener({ requestPermission: true });
+  });
+  startNameShakeListener({ requestPermission: false });
 }
 
 function isUuid(value) {
@@ -2098,7 +2239,10 @@ function renderCreate() {
           <h2>Create Game</h2>
           <label class="field">
             <span>Your name (optional)</span>
-            <input class="text-input" name="ownerName" autocomplete="nickname" maxlength="24" placeholder="${ownerNamePlaceholder}" value="" autofocus>
+            <div class="name-picker">
+              <input class="text-input" name="ownerName" data-random-name-target="ownerName" autocomplete="nickname" maxlength="24" placeholder="${ownerNamePlaceholder}" value="" autofocus>
+              ${randomNameButtonMarkup("ownerName")}
+            </div>
           </label>
           <label class="field">
             <span>Language</span>
@@ -2130,6 +2274,7 @@ function renderCreate() {
     event.preventDefault();
     createGame(new FormData(event.currentTarget));
   });
+  setupRandomNamePicker("ownerName");
   document.querySelector("#backToChoiceButton").addEventListener("click", () => {
     state.view = "home";
     state.notice = "";
@@ -2180,7 +2325,10 @@ function renderJoin() {
           </div>
           <label class="field">
             <span>Your name (optional)</span>
-            <input class="text-input" name="playerName" autocomplete="nickname" maxlength="24" placeholder="${playerNamePlaceholder}" value="${username}">
+            <div class="name-picker">
+              <input class="text-input" name="playerName" data-random-name-target="playerName" autocomplete="nickname" maxlength="24" placeholder="${playerNamePlaceholder}" value="${username}">
+              ${randomNameButtonMarkup("playerName")}
+            </div>
           </label>
           <button class="primary-button" type="submit">Join game</button>
           <button class="secondary-button" id="backToChoiceButton" type="button">Back</button>
@@ -2204,6 +2352,7 @@ function renderJoin() {
     }
     joinGame(new FormData(event.currentTarget));
   });
+  setupRandomNamePicker("playerName");
   document.querySelector("#backToChoiceButton").addEventListener("click", () => {
     state.view = "home";
     state.notice = "";
