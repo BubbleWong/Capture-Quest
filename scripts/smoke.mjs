@@ -76,6 +76,7 @@ try {
   assert.equal(created.ok, true);
   assert.match(created.gameId, /^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{6}$/);
   assert.equal(Boolean(created.qrCode), true);
+  assert.equal(new URL(created.gameUrl).searchParams.get("game"), created.gameId);
 
   await waitForState(states, (state) => state.status === "lobby");
   playerSocket = await connectSocket();

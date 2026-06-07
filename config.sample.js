@@ -3,7 +3,7 @@ export default {
   port: 3000,
   publicBaseUrl: "",
   game: {
-    maxPlayers: 20,
+    maxPlayers: 50,
     normalRounds: 5,
     objectTimeoutMs: 120000,
     nextRoundDelayMs: 5000,

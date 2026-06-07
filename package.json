@@ -8,10 +8,11 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "CAPTURE_QUEST_MODE=development node --watch server/index.js",
-    "check": "node --check server/index.js && node --check server/gameEngine.js && node --check server/llm.js && node --check server/challengeAudio.js && node --check server/database.js && node --check server/runtimeConfig.js && node --check server/cloudflareTunnel.js && node --check public/scripts/app.js && node --check public/service-worker.js && node --check scripts/smoke.mjs && node --check scripts/tests/gameEngine.test.mjs",
+    "check": "node --check server/index.js && node --check server/gameEngine.js && node --check server/llm.js && node --check server/challengeAudio.js && node --check server/database.js && node --check server/runtimeConfig.js && node --check server/cloudflareTunnel.js && node --check public/scripts/app.js && node --check public/service-worker.js && node --check scripts/smoke.mjs && node --check scripts/load-50.mjs && node --check scripts/tests/gameEngine.test.mjs",
     "test": "node --test scripts/tests/*.test.mjs",
     "ci": "npm run check && npm test",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "load:50": "node scripts/load-50.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1063.0",

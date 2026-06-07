@@ -8,11 +8,13 @@ Capture Quest has three useful test layers. Keep the fast deterministic tests as
 npm run check
 npm test
 npm run ci
+npm run load:50
 ```
 
 - `npm run check` runs `node --check` over the server, client script, service worker, smoke test, and engine tests.
 - `npm test` runs `scripts/tests/*.test.mjs` with Node's built-in test runner.
 - `npm run ci` runs the local deterministic gate: syntax checks plus engine tests.
+- `npm run load:50` starts an isolated local Socket.IO server with fake AI/audio/storage and runs one randomized 50-player game.
 
 ## Game Logic Coverage
 
@@ -50,6 +52,17 @@ To run an isolated local smoke server that ignores private `config.js`, use:
 PORT=3099 CAPTURE_QUEST_MODE=production CAPTURE_QUEST_SKIP_LOCAL_CONFIG=1 npm start
 TEST_BASE_URL=http://127.0.0.1:3099 npm run smoke
 ```
+
+## 50-Player Load Test
+
+```bash
+npm run load:50
+LOAD_TEST_SEED=123456 npm run load:50
+```
+
+The load test creates 50 real Socket.IO clients against a temporary in-process server, verifies the 51st player is rejected, randomizes rejoin, ready, skip, miss, and match behavior, then runs a full team-up game to completion. It uses fake AI, fake pronunciation audio, and fake persistence, so it does not require OpenRouter, S3, Postgres, Cloudflare, or camera access.
+
+Each run prints its random seed and timing metrics. Reuse `LOAD_TEST_SEED` to reproduce a specific randomized run.
 
 ## Device Checks
 

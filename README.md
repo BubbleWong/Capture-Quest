@@ -1,6 +1,6 @@
 # Capture Quest
 
-Capture Quest is a realtime camera scavenger hunt PWA for homes, classrooms, parties, and small groups. One player creates a game, shares a QR code or Game ID, and up to 20 players race to photograph safe everyday objects before the clock runs out.
+Capture Quest is a realtime camera scavenger hunt PWA for homes, classrooms, parties, and small groups. One player creates a game, shares a QR code or Game ID, and up to 50 players race to photograph safe everyday objects before the clock runs out.
 
 The app runs on a Node.js backend with Socket.IO, a modern browser frontend, optional Postgres result storage, OpenRouter-powered object generation and image verification, and optional S3-backed pronunciation audio.
 

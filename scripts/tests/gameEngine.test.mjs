@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { speechLanguageCode } from "../../server/challengeAudio.js";
+import { speechLanguageCode, speechRequestBody } from "../../server/challengeAudio.js";
 import { funnyAnimalUsernames, GameEngine, normalizeGameCode } from "../../server/gameEngine.js";
 import { createLlm } from "../../server/llm.js";
 
@@ -26,7 +26,7 @@ afterEach(() => {
 function gameConfig(overrides = {}) {
   return {
     game: {
-      maxPlayers: 20,
+      maxPlayers: 50,
       normalRounds: 3,
       objectTimeoutMs: 5000,
       nextRoundDelayMs: 25,
@@ -196,6 +196,33 @@ test("normalizes Crockford Base32 game codes", () => {
   assert.equal(normalizeGameCode("ABC12U"), null);
 });
 
+test("allows up to fifty players in a game", () => {
+  const { engine, io } = createEngine();
+  const owner = io.createSocket("owner");
+  const { game } = engine.createGame(owner, {
+    username: "Host",
+    clientId: clientIds.owner
+  });
+
+  for (let index = 1; index < 50; index += 1) {
+    const socket = io.createSocket(`player-${index}`);
+    const joined = engine.joinGame(socket, {
+      gameId: game.id,
+      username: `Player ${index}`,
+      clientId: `20000000-0000-4000-8000-${String(index).padStart(12, "0")}`
+    });
+    assert.equal(joined.error, undefined);
+  }
+
+  const tooMany = engine.joinGame(io.createSocket("player-50"), {
+    gameId: game.id,
+    username: "Player 50",
+    clientId: "20000000-0000-4000-8000-000000000050"
+  });
+  assert.equal(game.players.size, 50);
+  assert.match(tooMany.error, /full/);
+});
+
 test("maps Chinese script and dialect language choices to TTS speech hints", () => {
   assert.equal(speechLanguageCode("zh-hans-yue"), "yue-HK");
   assert.equal(speechLanguageCode("zh-hant-yue"), "yue-HK");
@@ -203,6 +230,27 @@ test("maps Chinese script and dialect language choices to TTS speech hints", () 
   assert.equal(speechLanguageCode("zh-hant-cmn"), "cmn-TW");
   assert.equal(speechLanguageCode("zh"), "cmn-CN");
   assert.equal(speechLanguageCode("zh-hant"), "cmn-TW");
+});
+
+test("puts TTS language guidance in the prompt without provider options", () => {
+  const body = speechRequestBody({
+    openRouter: {
+      ttsModel: "google/gemini-3.1-flash-tts-preview",
+      ttsVoice: "Kore"
+    },
+    item: "鉛筆",
+    languageCode: "zh-hant-yue",
+    languageName: "Chinese traditional (Cantonese)",
+    responseFormat: "mp3"
+  });
+
+  assert.equal(body.model, "google/gemini-3.1-flash-tts-preview");
+  assert.equal(body.voice, "Kore");
+  assert.equal(body.response_format, "mp3");
+  assert.equal("provider" in body, false);
+  assert.match(body.input, /Chinese traditional \(Cantonese\)/);
+  assert.match(body.input, /鉛筆/);
+  assert.match(body.input, /Say only the object phrase/);
 });
 
 test("uses a funny animal owner name when create-game username is blank", () => {
@@ -544,23 +592,27 @@ test("team-up skip votes count only after every connected player on a team votes
 });
 
 test("balances team-up mode and ends with team leaderboard data", async () => {
+  let verificationCalls = 0;
   const { engine, io, database } = createEngine({
     config: gameConfig({ normalRounds: 1, nextRoundDelayMs: 10 }),
     items: ["shoe", "book"],
-    verifyPhoto: async () => ({ match: true, confidence: 0.95, reason: "matched" })
+    verifyPhoto: async () => {
+      verificationCalls += 1;
+      return verificationCalls === 1
+        ? { match: false, confidence: 0.3, reason: "not the object" }
+        : { match: true, confidence: 0.95, reason: "matched" };
+    }
   });
   const owner = io.createSocket("owner");
   const playerA = io.createSocket("player-a");
-  const playerB = io.createSocket("player-b");
   const { game } = engine.createGame(owner, {
     username: "Host",
     clientId: clientIds.owner,
     teamUpEnabled: true
   });
-  engine.joinGame(playerA, { gameId: game.id, username: "Blueish", clientId: clientIds.playerA });
-  engine.joinGame(playerB, { gameId: game.id, username: "Redish", clientId: clientIds.playerB });
+  const joinedA = engine.joinGame(playerA, { gameId: game.id, username: "Runner", clientId: clientIds.playerA });
 
-  await startReadyGame(engine, owner, game, [playerA, playerB]);
+  await startReadyGame(engine, owner, game, [playerA]);
   const teamCounts = new Map();
   for (const player of game.players.values()) {
     teamCounts.set(player.teamId, (teamCounts.get(player.teamId) || 0) + 1);
@@ -569,6 +621,11 @@ test("balances team-up mode and ends with team leaderboard data", async () => {
   assert.equal(Math.abs([...teamCounts.values()][0] - [...teamCounts.values()][1]) <= 1, true);
 
   const winningTeamId = game.players.get(game.ownerPlayerId).teamId;
+  assert.notEqual(joinedA.player.teamId, winningTeamId);
+  assert.equal(engine.submitCapture(playerA, { gameId: game.id, challengeId: game.currentRound.id, imageDataUrl: tinyImage }).ok, true);
+  await waitFor(() => joinedA.player.penalties === 1, "team miss contributor");
+  assert.equal(joinedA.player.score, -1);
+
   assert.equal(engine.submitCapture(owner, { gameId: game.id, challengeId: game.currentRound.id, imageDataUrl: tinyImage }).ok, true);
   await waitFor(() => game.status === "ended", "team game end");
 
@@ -576,6 +633,16 @@ test("balances team-up mode and ends with team leaderboard data", async () => {
   assert.equal(database.results.length, 1);
   assert.equal(database.results[0].teams.length, 2);
   assert.equal(database.results[0].winner.id, winningTeamId);
+  const winningTeam = database.results[0].teams.find((team) => team.id === winningTeamId);
+  const losingTeam = database.results[0].teams.find((team) => team.id === joinedA.player.teamId);
+  assert.equal(winningTeam.score, 1);
+  assert.deepEqual(winningTeam.contributors.map((player) => [player.username, player.score, player.pointsFound, player.penalties]), [
+    ["Host", 1, 1, 0]
+  ]);
+  assert.equal(losingTeam.score, -1);
+  assert.deepEqual(losingTeam.contributors.map((player) => [player.username, player.score, player.pointsFound, player.penalties]), [
+    ["Runner", -1, 0, 1]
+  ]);
 });
 
 test("supports owner pause/resume/end and restart with the same group", async () => {

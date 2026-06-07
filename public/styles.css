@@ -739,6 +739,71 @@ button:disabled {
   font-weight: 850;
 }
 
+.final-team-score-row {
+  align-items: stretch;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr;
+}
+
+.final-team-main {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto 1fr auto;
+}
+
+.team-contributor-list {
+  border-top: 1px solid rgba(23, 32, 51, 0.14);
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 8px 0 0;
+}
+
+.team-contributor-row {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.team-contributor-name {
+  font-size: 0.84rem;
+  font-weight: 950;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-contributor-detail {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.team-contributor-score {
+  background: #ffffff;
+  border: 2px solid rgba(23, 32, 51, 0.18);
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 950;
+  min-width: 38px;
+  padding: 2px 6px;
+  text-align: center;
+}
+
+.leaderboard-dialog .team-leaderboard-list {
+  min-width: min(76vw, 420px);
+}
+
+.leaderboard-dialog .final-team-score-row {
+  min-height: 0;
+}
+
 .team-badge {
   align-items: center;
   backdrop-filter: blur(12px);

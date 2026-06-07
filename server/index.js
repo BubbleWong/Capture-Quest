@@ -138,7 +138,9 @@ function publicBaseUrl(socket) {
 }
 
 async function gameJoinPayload(socket, game, player) {
-  const url = `${publicBaseUrl(socket)}/?game=${encodeURIComponent(game.id)}`;
+  const joinUrl = new URL(publicBaseUrl(socket));
+  joinUrl.searchParams.set("game", game.id);
+  const url = joinUrl.toString();
   const qrCode = await QRCode.toDataURL(url, {
     margin: 1,
     scale: 8,

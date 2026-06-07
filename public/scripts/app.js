@@ -942,10 +942,21 @@ async function joinGame(formData) {
 
 async function rejoinPreviousGame() {
   const stored = readSession();
-  const targetGameId = state.urlGameId || stored?.gameId;
-  const targetPlayerId = stored?.playerId;
+  const urlGameId = normalizeGameIdInput(state.urlGameId);
+  const storedGameId = normalizeGameIdInput(stored?.gameId);
+  const targetGameId = urlGameId || storedGameId;
+  const targetPlayerId = urlGameId && storedGameId !== urlGameId ? "" : stored?.playerId;
   const clientId = readClientId();
   const username = readLastUsername();
+
+  if (urlGameId && !targetPlayerId) {
+    state.view = "join";
+    state.prefillGameId = urlGameId;
+    state.notice = "";
+    render();
+    return;
+  }
+
   if (!targetGameId || (!targetPlayerId && !username)) return;
 
   const response = await emitAck("rejoin_game", {
@@ -2030,6 +2041,54 @@ function teamScoreRows(teams = []) {
     .join("");
 }
 
+function signedScore(value) {
+  const number = Number(value || 0);
+  return number > 0 ? `+${number}` : String(number);
+}
+
+function contributionSummary(contributor) {
+  const parts = [];
+  if (contributor.pointsFound) parts.push(`${contributor.pointsFound} found`);
+  if (contributor.penalties) parts.push(`${contributor.penalties} miss${contributor.penalties === 1 ? "" : "es"}`);
+  return parts.join(" · ") || "contributed";
+}
+
+function finalTeamScoreRows(teams = []) {
+  return [...teams]
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+    .map((team, index) => {
+      const contributors = [...(team.contributors || [])].filter(
+        (contributor) => contributor.pointsFound || contributor.penalties || contributor.score !== 0
+      );
+      const contributorRows = contributors
+        .map(
+          (contributor) => `
+            <li class="team-contributor-row">
+              <span class="team-contributor-name">${escapeHtml(contributor.username)}</span>
+              <span class="team-contributor-detail">${escapeHtml(contributionSummary(contributor))}</span>
+              <span class="team-contributor-score">${escapeHtml(signedScore(contributor.score))}</span>
+            </li>
+          `
+        )
+        .join("");
+
+      return `
+        <li class="score-row team-score-row final-team-score-row ${teamClass(team.id)}" style="--team-color:${escapeHtml(team.color || "#4b7dff")}">
+          <div class="final-team-main">
+            <span class="score-rank">${index + 1}</span>
+            <span class="score-name">
+              <span class="team-score-name">${escapeHtml(team.name)}</span>
+              <span class="team-score-meta">${team.players} player${team.players === 1 ? "" : "s"}</span>
+            </span>
+            <span class="score-value">${team.score}</span>
+          </div>
+          ${contributorRows ? `<ul class="team-contributor-list">${contributorRows}</ul>` : ""}
+        </li>
+      `;
+    })
+    .join("");
+}
+
 function playerScoreRows(players) {
   return [...players]
     .sort((a, b) => b.score - a.score || a.username.localeCompare(b.username))
@@ -2046,7 +2105,7 @@ function playerScoreRows(players) {
 }
 
 function leaderboardRows(game) {
-  if (game.teamUpEnabled) return teamScoreRows(game.teamScores || []);
+  if (game.teamUpEnabled) return finalTeamScoreRows(game.teamScores || []);
   return playerScoreRows(game.players || []);
 }
 
@@ -2551,7 +2610,7 @@ function renderEnd() {
   const game = state.game;
   const isOwner = game.me?.id === game.ownerPlayerId;
   const winnerName = game.winner?.username || game.winner?.name || "Game complete";
-  const finalRows = game.teamUpEnabled ? teamScoreRows(game.teamScores || []) : playerRows(game.players);
+  const finalRows = game.teamUpEnabled ? finalTeamScoreRows(game.teamScores || []) : playerRows(game.players);
   app.innerHTML = `
     <section class="screen end-layout">
       <div class="stack">
@@ -2684,7 +2743,7 @@ async function openLeaderboard() {
 
   const rows = leaderboardRows(state.game);
   leaderboardContent.innerHTML = rows
-    ? `<ol class="score-list">${rows}</ol>`
+    ? `<ol class="score-list ${state.game.teamUpEnabled ? "team-leaderboard-list" : ""}">${rows}</ol>`
     : `<p class="empty-state">No players in this group yet.</p>`;
 }
 

@@ -51,6 +51,27 @@ function extensionForFormat(format) {
   return format === "pcm" ? "wav" : "mp3";
 }
 
+export function speechPromptForItem({ item, languageCode, languageName }) {
+  const cleanItem = String(item || "").trim();
+  const cleanLanguageName = String(languageName || "").trim();
+  const fallbackLanguage = speechLanguageCode(languageCode);
+  const spokenLanguage = cleanLanguageName || fallbackLanguage || "the selected language";
+  return [
+    `Pronounce this object phrase in ${spokenLanguage}.`,
+    "Say only the object phrase. Do not translate it, spell it, or add extra words.",
+    `Object phrase: ${cleanItem}`
+  ].join(" ");
+}
+
+export function speechRequestBody({ openRouter, item, languageCode, languageName, responseFormat }) {
+  return {
+    model: openRouter.ttsModel,
+    input: speechPromptForItem({ item, languageCode, languageName }),
+    voice: openRouter.ttsVoice || "Kore",
+    response_format: responseFormat
+  };
+}
+
 function wavFromPcm(pcmBuffer, { sampleRate = 24000, channels = 1, bitsPerSample = 16 } = {}) {
   const byteRate = sampleRate * channels * (bitsPerSample / 8);
   const blockAlign = channels * (bitsPerSample / 8);
@@ -131,7 +152,7 @@ function isAclUnsupported(error) {
   );
 }
 
-export function createChallengeAudioCache(config, logger = console) {
+export function createChallengeAudioCache(config) {
   const openRouter = config.openRouter || {};
   const storage = config.s3 || {};
   const responseFormat = cleanResponseFormat(openRouter.ttsResponseFormat);
@@ -233,45 +254,22 @@ export function createChallengeAudioCache(config, logger = console) {
     }
   }
 
-  async function requestSpeech({ item, languageCode }) {
+  async function requestSpeech({ item, languageCode, languageName }) {
     const baseUrl = String(openRouter.baseUrl || "https://openrouter.ai/api/v1").replace(/\/$/, "");
-    const body = {
-      model: openRouter.ttsModel,
-      input: String(item || "").trim(),
-      voice: openRouter.ttsVoice || "Kore",
-      response_format: responseFormat,
-      provider: {
-        options: {
-          google: {
-            language_code: speechLanguageCode(languageCode)
-          }
-        }
-      }
-    };
-
-    async function sendSpeechRequest(payload) {
-      const response = await fetch(`${baseUrl}/audio/speech`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openRouter.apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": openRouter.referer || config.publicBaseUrl || "http://localhost",
-          "X-Title": openRouter.appTitle || "Capture Quest"
-        },
-        body: JSON.stringify(payload)
-      });
-      if (response.ok) return response;
+    const body = speechRequestBody({ openRouter, item, languageCode, languageName, responseFormat });
+    const response = await fetch(`${baseUrl}/audio/speech`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openRouter.apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": openRouter.referer || config.publicBaseUrl || "http://localhost",
+        "X-Title": openRouter.appTitle || "Capture Quest"
+      },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
       const text = await response.text();
       throw new Error(`OpenRouter TTS request failed: ${response.status} ${text.slice(0, 240)}`);
-    }
-
-    let response;
-    try {
-      response = await sendSpeechRequest(body);
-    } catch (error) {
-      const { provider: _provider, ...bodyWithoutProviderOptions } = body;
-      logger.warn(`TTS language hint failed (${error.message}). Retrying without provider language options.`);
-      response = await sendSpeechRequest(bodyWithoutProviderOptions);
     }
 
     let buffer = Buffer.from(await response.arrayBuffer());
@@ -287,7 +285,7 @@ export function createChallengeAudioCache(config, logger = console) {
 
   return {
     enabled: true,
-    async prepareAudio({ item, languageCode }) {
+    async prepareAudio({ item, languageCode, languageName }) {
       const cleanItem = String(item || "").trim();
       if (!cleanItem) return "";
 
@@ -307,7 +305,7 @@ export function createChallengeAudioCache(config, logger = console) {
 
       if (await objectExists(key, url)) return url;
 
-      const audio = await requestSpeech({ item: cleanItem, languageCode: code });
+      const audio = await requestSpeech({ item: cleanItem, languageCode: code, languageName });
       await uploadObject(key, audio.buffer, audio.contentType);
       return url;
     }

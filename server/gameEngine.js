@@ -228,6 +228,8 @@ function publicPlayer(player, game = null) {
     id: player.id,
     username: player.username,
     score: player.score,
+    pointsFound: player.pointsFound || 0,
+    penalties: player.penalties || 0,
     ready: player.ready,
     isOwner: player.isOwner,
     connected: player.connected,
@@ -261,7 +263,8 @@ function teamScores(game) {
         ...team,
         score: 0,
         players: 0,
-        connectedPlayers: 0
+        connectedPlayers: 0,
+        contributors: []
       }
     ])
   );
@@ -272,9 +275,29 @@ function teamScores(game) {
     score.score += player.score;
     score.players += 1;
     if (player.connected) score.connectedPlayers += 1;
+    if ((player.pointsFound || 0) > 0 || (player.penalties || 0) > 0 || player.score !== 0) {
+      score.contributors.push({
+        id: player.id,
+        username: player.username,
+        score: player.score,
+        pointsFound: player.pointsFound || 0,
+        penalties: player.penalties || 0,
+        connected: player.connected,
+        isOwner: player.isOwner
+      });
+    }
   }
 
-  return [...scores.values()];
+  return [...scores.values()].map((score) => ({
+    ...score,
+    contributors: score.contributors.sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.pointsFound - a.pointsFound ||
+        a.penalties - b.penalties ||
+        a.username.localeCompare(b.username)
+    )
+  }));
 }
 
 function activeTeamScores(game) {
@@ -483,6 +506,8 @@ export class GameEngine {
     this.clearTimers(game);
     for (const currentPlayer of game.players.values()) {
       currentPlayer.score = 0;
+      currentPlayer.pointsFound = 0;
+      currentPlayer.penalties = 0;
       currentPlayer.ready = false;
     }
     game.status = "lobby";
@@ -767,6 +792,8 @@ export class GameEngine {
       socketId: socket.id,
       username: cleanUsername(username, randomFunnyAnimalUsername()),
       score: 0,
+      pointsFound: 0,
+      penalties: 0,
       teamId: null,
       ready: false,
       isOwner,
@@ -1133,6 +1160,7 @@ export class GameEngine {
       ? `${player.username} from ${team.name.toLowerCase()} did not match ${round?.item || "the target"}. ${result.reason || "Not a match yet."} -1 point.`
       : `${player.username} did not match ${round?.item || "the target"}. ${result.reason || "Not a match yet."} -1 point.`;
     player.score -= 1;
+    player.penalties = (player.penalties || 0) + 1;
     const currentTeamScore = teamScores(game).find((score) => score.id === team?.id)?.score ?? null;
     this.io.to(player.socketId).emit("submission_result", {
       status: "miss",
@@ -1166,6 +1194,7 @@ export class GameEngine {
     round.status = "found";
     this.dropQueuedSubmissionsForChallenge(game, round.id);
     player.score += 1;
+    player.pointsFound = (player.pointsFound || 0) + 1;
     game.roundsAwarded += 1;
     const team = teamForPlayer(game, player);
     const currentTeamScore = teamScores(game).find((score) => score.id === team?.id)?.score ?? null;
