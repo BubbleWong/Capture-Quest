@@ -2506,7 +2506,6 @@ function renderGame() {
   const torchDisabled = !cameraState.stream || !cameraState.torchSupported || cameraState.torchChanging;
   const skip = game.currentRound?.skip || null;
   const skipDisabled = !isRoundActive || Boolean(skip?.voted);
-  const torchLabel = cameraState.torchChanging ? "Flash..." : cameraState.torchOn ? "Flash on" : "Flash";
   const torchTitle = !cameraState.stream
     ? "Camera is starting"
     : cameraState.torchSupported
@@ -2572,15 +2571,13 @@ function renderGame() {
           id="toggleTorchButton"
           type="button"
           aria-pressed="${cameraState.torchOn ? "true" : "false"}"
+          aria-label="${escapeHtml(torchTitle)}"
           title="${escapeHtml(torchTitle)}"
           ${torchDisabled ? "disabled" : ""}
         >
-          <svg class="flashlight-icon" viewBox="0 0 56 28" aria-hidden="true" focusable="false">
-            <path class="flashlight-beam" d="M42 6 L55 1 L55 27 L42 22 Z"></path>
-            <path class="flashlight-body" d="M4 10 H24 L31 6 H39 C41 6 42 7 42 9 V19 C42 21 41 22 39 22 H31 L24 18 H4 Z"></path>
-            <path class="flashlight-lines" d="M12 10 V18 M19 10 V18 M31 6 V22"></path>
+          <svg class="flashlight-icon" viewBox="0 0 256 256" aria-hidden="true" focusable="false">
+            <path d="M184 16H72a16 16 0 0 0-16 16v45.33a16.12 16.12 0 0 0 3.2 9.6L80 114.67V224a16 16 0 0 0 16 16h64a16 16 0 0 0 16-16V114.67l20.8-27.74a16.12 16.12 0 0 0 3.2-9.6V32a16 16 0 0 0-16-16M72 32h112v24H72zm91.2 73.07a16.12 16.12 0 0 0-3.2 9.6V224H96V114.67a16.12 16.12 0 0 0-3.2-9.6L72 77.33V72h112v5.33ZM136 120v32a8 8 0 0 1-16 0v-32a8 8 0 0 1 16 0"></path>
           </svg>
-          <span>${escapeHtml(torchLabel)}</span>
         </button>
         <button
           class="secondary-button game-skip-button ${skip?.voted ? "is-voted" : ""}"

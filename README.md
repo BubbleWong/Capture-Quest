@@ -133,6 +133,10 @@ Bundled BGM files are converted to MP3 for browser compatibility. Source tracks:
 - In-game: [BooxBep Chiptune](https://opengameart.org/content/booxbep-chiptune) by Fupi, CC0.
 - Last 10 seconds: [Fast fight / battle music (looped)](https://opengameart.org/content/fast-fight-battle-music-looped) by XCVG, based on work by Ville Nousiainen, CC0.
 
+## Icon Credits
+
+- Flashlight icon: [Phosphor Icons](https://phosphoricons.com/), MIT License.
+
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE).

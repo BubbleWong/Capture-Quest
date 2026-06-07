@@ -1286,17 +1286,13 @@ body.is-game-active .main-stage {
 }
 
 .game-flash-button {
+  align-items: center;
   flex: 0 0 auto;
-  gap: 8px;
+  justify-content: center;
   min-height: 58px;
-  min-width: 118px;
-  padding-left: 12px;
-  padding-right: 12px;
-}
-
-.game-flash-button span {
-  line-height: 1;
-  white-space: nowrap;
+  min-width: 82px;
+  overflow: visible;
+  padding: 6px;
 }
 
 .game-flash-button.is-on {
@@ -1318,33 +1314,13 @@ body.is-game-active .main-stage {
 .flashlight-icon {
   color: currentColor;
   flex: 0 0 auto;
-  height: 26px;
+  height: 42px;
   overflow: visible;
-  width: 52px;
+  width: 42px;
 }
 
-.flashlight-body {
-  fill: #ffffff;
-  stroke: currentColor;
-  stroke-linejoin: round;
-  stroke-width: 3;
-}
-
-.flashlight-lines {
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-width: 2.5;
-}
-
-.flashlight-beam {
-  fill: rgba(255, 205, 71, 0.7);
-  opacity: 0;
-  transition: opacity 0.16s ease;
-}
-
-.game-flash-button.is-on .flashlight-beam {
-  opacity: 1;
+.flashlight-icon path {
+  fill: currentColor;
 }
 
 @keyframes toast-life {
@@ -1650,12 +1626,9 @@ body.is-game-active .main-stage {
   }
 
   .game-flash-button {
-    flex: 0 0 96px;
-    font-size: 0.82rem;
-    gap: 5px;
+    flex: 0 0 64px;
     min-width: 0;
-    padding-left: 6px;
-    padding-right: 6px;
+    padding: 5px;
   }
 
   .game-skip-button {
@@ -1667,8 +1640,8 @@ body.is-game-active .main-stage {
   }
 
   .flashlight-icon {
-    height: 20px;
-    width: 38px;
+    height: 40px;
+    width: 40px;
   }
 
   .game-shutter-button {
