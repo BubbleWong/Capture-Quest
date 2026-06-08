@@ -14,6 +14,7 @@ The app runs on a Node.js backend with Socket.IO, a modern browser frontend, opt
 - Player ready checks, reconnect support, local player UUIDs, and one online session per player.
 - AI-generated object rounds with optional owner-provided word list or prompt guide.
 - Language-aware challenges, language tags, and optional pronunciation audio.
+- Image verification accepts recognizable real objects, photos, drawings, stickers, or icons of the target.
 - Sequential verification queues per game so only one photo is verified at a time in each game.
 - Miss penalties only for active, unsolved challenges; stale or already-solved submissions are ignored.
 - Optional team-up mode with red/blue team balancing and team scoreboards.

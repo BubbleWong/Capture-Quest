@@ -253,6 +253,71 @@ test("puts TTS language guidance in the prompt without provider options", () => 
   assert.match(body.input, /Say only the object phrase/);
 });
 
+test("vision verifier prompt accepts drawings and photos of the target object", async () => {
+  const previousFetch = globalThis.fetch;
+  let requestBody;
+  globalThis.fetch = async (_url, options = {}) => {
+    requestBody = JSON.parse(options.body);
+    return {
+      ok: true,
+      async json() {
+        return {
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  match: true,
+                  confidence: 0.93,
+                  reason: "The drawing clearly depicts the target."
+                })
+              }
+            }
+          ]
+        };
+      },
+      async text() {
+        return "";
+      }
+    };
+  };
+
+  try {
+    const llm = createLlm(
+      {
+        publicBaseUrl: "http://localhost",
+        openRouter: {
+          apiKey: "test-key",
+          model: "default-model",
+          visionModel: "vision-model",
+          baseUrl: "http://openrouter.test",
+          mockWhenMissingKey: false
+        }
+      },
+      { warn() {}, info() {}, error() {} }
+    );
+
+    const result = await llm.verifyPhoto({
+      item: "shoe",
+      language: "French",
+      imageDataUrl: tinyImage
+    });
+
+    const textPart = requestBody.messages[1].content.find((part) => part.type === "text").text;
+    const imagePart = requestBody.messages[1].content.find((part) => part.type === "image_url");
+
+    assert.equal(requestBody.model, "vision-model");
+    assert.equal(result.match, true);
+    assert.equal(result.confidence, 0.93);
+    assert.match(textPart, /clear visual representation/);
+    assert.match(textPart, /drawing, printed picture, photo, sticker, icon/);
+    assert.match(textPart, /text-only label/);
+    assert.match(textPart, /French/);
+    assert.equal(imagePart.image_url.url, tinyImage);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
 test("uses a funny animal owner name when create-game username is blank", () => {
   const { engine, io } = createEngine();
   const owner = io.createSocket("owner");

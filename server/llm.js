@@ -617,7 +617,9 @@ export function createLlm(config, logger = console) {
                   text: [
                     identityPrompt.replace('"xxxx"', `"${item}"`),
                     `The target object phrase is in ${String(language || "English").trim().slice(0, 80) || "English"}.`,
-                    "Translate the target phrase internally if needed and judge the physical object shown in the photo.",
+                    "Translate the target phrase internally if needed and judge the visual evidence shown in the photo.",
+                    "A match may be the real physical object or a clear visual representation of it, such as a drawing, printed picture, photo, sticker, icon, or similar depiction.",
+                    "Do not require the real-world physical object. A text-only label or written object name does not count without a recognizable visual depiction.",
                     "The photo does not need to contain written text in the target language."
                   ].join("\n\n")
                 },
