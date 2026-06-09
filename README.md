@@ -8,7 +8,8 @@ The app runs on a Node.js backend with Socket.IO, a modern browser frontend, opt
 
 ## Features
 
-- Create or join games by QR code, URL, or Crockford Base32 Game ID.
+- One-click game creation, plus join by QR code, URL, or Crockford Base32 Game ID.
+- Lobby game options for player names, challenge language, optional object guide, and team-up mode before start.
 - Phone/tablet camera gameplay with client-side image downscaling before upload.
 - Owner controls for start, pause, end, and restart with the same group.
 - Player ready checks, reconnect support, local player UUIDs, and one online session per player.

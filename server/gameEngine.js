@@ -134,17 +134,19 @@ function randomFunnyAnimalUsername() {
   return funnyAnimalUsernames[crypto.randomInt(funnyAnimalUsernames.length)];
 }
 
-function usernameExists(game, username) {
-  return [...game.players.values()].some((player) => usernamesMatch(player.username, username));
+function usernameExists(game, username, excludedPlayerId = "") {
+  return [...game.players.values()].some(
+    (player) => player.id !== excludedPlayerId && usernamesMatch(player.username, username)
+  );
 }
 
-function randomAvailableFunnyAnimalUsername(game) {
-  const availableNames = funnyAnimalUsernames.filter((username) => !usernameExists(game, username));
+function randomAvailableFunnyAnimalUsername(game, excludedPlayerId = "") {
+  const availableNames = funnyAnimalUsernames.filter((username) => !usernameExists(game, username, excludedPlayerId));
   if (availableNames.length) return availableNames[crypto.randomInt(availableNames.length)];
 
   for (;;) {
     const username = `${randomFunnyAnimalUsername()} ${crypto.randomInt(10, 100)}`;
-    if (!usernameExists(game, username)) return username;
+    if (!usernameExists(game, username, excludedPlayerId)) return username;
   }
 }
 
@@ -429,12 +431,13 @@ export class GameEngine {
     if (!game) return { error: "Game not found." };
 
     const clientId = cleanClientId(payload.clientId);
-    const username = cleanUsername(payload.username, "") || randomAvailableFunnyAnimalUsername(game);
-    const existingPlayer = this.findPlayerByIdentity(game, username, clientId);
+    const requestedUsername = cleanUsername(payload.username, "");
+    const existingPlayer = this.findPlayerByIdentity(game, requestedUsername, clientId);
     if (existingPlayer) {
       this.attachPlayerToSocket(game, existingPlayer, socket);
       return { game, player: existingPlayer };
     }
+    const username = requestedUsername || randomAvailableFunnyAnimalUsername(game);
 
     if (game.status !== "lobby") return { error: "This game has already started." };
     if (game.players.size >= this.config.game.maxPlayers) return { error: "This game is full." };
@@ -472,6 +475,65 @@ export class GameEngine {
     const { game, player } = session;
     if (game.status !== "lobby") return { error: "Ready can only be changed in the lobby." };
     player.ready = Boolean(payload.ready);
+    this.emitState(game);
+    return { game, player };
+  }
+
+  updatePlayerName(socket, payload = {}) {
+    const session = this.getSession(socket, payload.gameId);
+    if (!session) return { error: "You are not in this game." };
+    const { game, player } = session;
+    if (game.status !== "lobby") return { error: "Names can only be changed in the lobby." };
+
+    const username = cleanUsername(payload.username, "") || randomAvailableFunnyAnimalUsername(game, player.id);
+    if (usernameExists(game, username, player.id)) {
+      return { error: "That name is already used in this game. Try another name." };
+    }
+
+    const previousUsername = player.username;
+    player.username = username;
+    player.ready = false;
+    if (!usernamesMatch(previousUsername, username)) {
+      this.emitNotice(game, `${previousUsername} is now ${username}.`);
+    }
+    this.emitState(game);
+    return { game, player };
+  }
+
+  updateGameOptions(socket, payload = {}) {
+    const session = this.getSession(socket, payload.gameId);
+    if (!session) return { error: "You are not in this game." };
+    const { game, player } = session;
+    if (game.ownerPlayerId !== player.id) return { error: "Only the game owner can change game options." };
+    if (game.status !== "lobby") return { error: "Game options can only be changed in the lobby." };
+
+    const nextInitialChallengeInput = cleanInitialChallengeInput(
+      payload.initialChallengeInput || payload.initialPrompt || payload.initialWordList || payload.initialItems
+    );
+    const nextChallengeLanguage = cleanChallengeLanguage(payload.challengeLanguage);
+    const nextTeamUpEnabled = cleanBoolean(payload.teamUpEnabled);
+    const changed =
+      game.initialChallengeInput !== nextInitialChallengeInput ||
+      game.challengeLanguage !== nextChallengeLanguage ||
+      game.teamUpEnabled !== nextTeamUpEnabled;
+
+    game.initialChallengeInput = nextInitialChallengeInput;
+    game.challengeLanguage = nextChallengeLanguage;
+    game.teamUpEnabled = nextTeamUpEnabled;
+    game.teams = createTeams(nextTeamUpEnabled);
+    game.initialChallengePrepared = false;
+    game.itemQueue = [];
+    if (!nextTeamUpEnabled) {
+      for (const currentPlayer of game.players.values()) {
+        currentPlayer.teamId = null;
+      }
+    }
+    if (changed) {
+      for (const currentPlayer of game.players.values()) {
+        currentPlayer.ready = false;
+      }
+      this.emitNotice(game, "Game options updated. Ready up when you are set.");
+    }
     this.emitState(game);
     return { game, player };
   }
@@ -748,6 +810,9 @@ export class GameEngine {
       teamUpEnabled: game.teamUpEnabled,
       teams: game.teams,
       teamScores: currentTeamScores,
+      challengeLanguage: game.challengeLanguage,
+      challengeLanguageName: challengeLanguageName(game.challengeLanguage),
+      initialChallengeInput: game.initialChallengeInput,
       maxPlayers: this.config.game.maxPlayers,
       roundNumber: game.roundNumber,
       roundsAwarded: game.roundsAwarded,
@@ -803,10 +868,10 @@ export class GameEngine {
   }
 
   findPlayerByIdentity(game, username, clientId) {
-    if (!game || !clientId || !username) return null;
+    if (!game || !clientId) return null;
     return (
       [...game.players.values()].find(
-        (player) => player.clientId === clientId && usernamesMatch(player.username, username)
+        (player) => player.clientId === clientId && (!username || usernamesMatch(player.username, username))
       ) || null
     );
   }

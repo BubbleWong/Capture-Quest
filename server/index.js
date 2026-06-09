@@ -219,6 +219,16 @@ io.on("connection", (socket) => {
     ack(callback, result.error ? { ok: false, error: result.error } : { ok: true });
   });
 
+  socket.on("update_player_name", (payload, callback) => {
+    const result = engine.updatePlayerName(socket, payload);
+    ack(callback, result.error ? { ok: false, error: result.error } : { ok: true });
+  });
+
+  socket.on("update_game_options", (payload, callback) => {
+    const result = engine.updateGameOptions(socket, payload);
+    ack(callback, result.error ? { ok: false, error: result.error } : { ok: true });
+  });
+
   socket.on("start_game", async (payload, callback) => {
     const result = await engine.startGame(socket, payload);
     ack(callback, result.error ? { ok: false, error: result.error } : { ok: true });

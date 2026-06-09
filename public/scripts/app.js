@@ -7,6 +7,7 @@ const closeLeaderboardButton = document.querySelector("#closeLeaderboardButton")
 const gameMenuDialog = document.querySelector("#gameMenuDialog");
 const gameMenuContent = document.querySelector("#gameMenuContent");
 const closeGameMenuButton = document.querySelector("#closeGameMenuButton");
+const globalToastStack = document.querySelector("#globalToastStack");
 
 const socket = io();
 const query = new URLSearchParams(window.location.search);
@@ -90,6 +91,7 @@ const funnyAnimalUsernames = [
 const cameraDebugEnabled =
   query.get("debugCamera") === "1" || localStorage.getItem("captureQuestDebugCamera") === "1";
 const cameraDebugEvents = [];
+const maxVisibleNotifications = 3;
 
 const state = {
   view: initialGameId ? "join" : "home",
@@ -105,7 +107,8 @@ const state = {
   urlGameId: initialGameId,
   prefillGameId: initialGameId,
   ownerNamePlaceholder: "",
-  joinNamePlaceholder: ""
+  joinNamePlaceholder: "",
+  lastRenderedView: ""
 };
 
 const nameShakeState = {
@@ -637,7 +640,7 @@ function randomNameButtonMarkup(targetName) {
 }
 
 function currentRandomNameInput() {
-  if (state.view !== "create" && state.view !== "join") return null;
+  if (state.view !== "create" && state.view !== "join" && state.view !== "lobby") return null;
   return document.querySelector("[data-random-name-target]");
 }
 
@@ -811,11 +814,6 @@ function updateGameQuery(gameId = "") {
   window.history.replaceState({}, "", url);
 }
 
-function setNotice(message) {
-  state.notice = message || "";
-  render();
-}
-
 function notificationType(status) {
   if (status === "found") return "success";
   if (status === "miss") return "danger";
@@ -825,32 +823,111 @@ function notificationType(status) {
   return "info";
 }
 
+function createToastElement(notification) {
+  const element = document.createElement("div");
+  element.className = `game-toast is-${notification.type}`;
+  element.dataset.id = String(notification.id);
+  const content = document.createElement("div");
+  content.className = "game-toast-content";
+  content.textContent = notification.message;
+  element.appendChild(content);
+  return element;
+}
+
+function toastPositionMap() {
+  return new Map(
+    Array.from(globalToastStack?.querySelectorAll(".game-toast") || []).map((element) => [
+      element.dataset.id || "",
+      element.getBoundingClientRect().top
+    ])
+  );
+}
+
+function animateToastDisplacement(previousPositions) {
+  if (!globalToastStack || !previousPositions.size) return;
+  requestAnimationFrame(() => {
+    for (const element of Array.from(globalToastStack.querySelectorAll(".game-toast"))) {
+      const previousTop = previousPositions.get(element.dataset.id || "");
+      if (previousTop === undefined) continue;
+      const currentTop = element.getBoundingClientRect().top;
+      const deltaY = previousTop - currentTop;
+      if (Math.abs(deltaY) < 1) continue;
+      const slideToken = `${Date.now()}-${element.dataset.id || "toast"}`;
+      element.dataset.slideToken = slideToken;
+      element.style.transition = "none";
+      element.style.marginTop = `${deltaY}px`;
+      element.offsetHeight;
+      window.setTimeout(() => {
+        if (element.dataset.slideToken !== slideToken) return;
+        element.style.transition = "margin-top 220ms cubic-bezier(0.2, 0.8, 0.2, 1)";
+        element.style.marginTop = "0";
+      }, 20);
+      window.setTimeout(() => {
+        if (element.dataset.slideToken === slideToken) {
+          delete element.dataset.slideToken;
+          element.style.transition = "";
+          element.style.marginTop = "";
+        }
+      }, 320);
+    }
+  });
+}
+
+function renderGlobalNotifications() {
+  if (!globalToastStack) return;
+  const orderedNotifications = [...state.notifications].reverse();
+  const activeIds = new Set(orderedNotifications.map((notification) => String(notification.id)));
+  const previousPositions = toastPositionMap();
+  let addedToast = false;
+
+  for (const element of Array.from(globalToastStack.querySelectorAll(".game-toast"))) {
+    if (!activeIds.has(element.dataset.id || "")) {
+      element.remove();
+    }
+  }
+
+  for (const notification of orderedNotifications) {
+    const id = String(notification.id);
+    if (globalToastStack.querySelector(`.game-toast[data-id="${id}"]`)) continue;
+    const element = createToastElement(notification);
+    const referenceElement = globalToastStack.children[orderedNotifications.indexOf(notification)] || null;
+    globalToastStack.insertBefore(element, referenceElement);
+    addedToast = true;
+  }
+
+  if (addedToast) animateToastDisplacement(previousPositions);
+}
+
 function pushNotification(message, status = "info") {
   if (!message) return;
   const id = (state.notificationId += 1);
   playNotificationSound(status);
+  const retainedNotifications =
+    state.notifications.length >= maxVisibleNotifications
+      ? state.notifications.slice(-(maxVisibleNotifications - 1))
+      : state.notifications;
   state.notifications = [
-    ...state.notifications.slice(-3),
+    ...retainedNotifications,
     {
       id,
       message,
       type: notificationType(status)
     }
   ];
-  render();
+  renderGlobalNotifications();
   setTimeout(() => {
     state.notifications = state.notifications.filter((notification) => notification.id !== id);
-    if (state.view === "game") render();
+    renderGlobalNotifications();
   }, 3000);
 }
 
+function setNotice(message, status = "info") {
+  state.notice = "";
+  pushNotification(message, status);
+}
+
 function showMessage(message, status = "info") {
-  if (state.view === "game") {
-    state.notice = "";
-    pushNotification(message, status);
-  } else {
-    setNotice(message);
-  }
+  setNotice(message, status);
 }
 
 function activeGameCode() {
@@ -904,13 +981,13 @@ function clearStaleGameLink(message = "") {
   state.notifications = [];
   state.prefillGameId = "";
   updateGameQuery("");
-  state.notice = message;
   render();
+  showMessage(message);
 }
 
-async function createGame(formData) {
-  const ownerName = String(formData.get("ownerName") || "").trim() || ensureOwnerNamePlaceholder();
-  saveLastUsername(ownerName);
+async function createGame(formData = new FormData()) {
+  const ownerName = String(formData.get("ownerName") || "").trim();
+  if (ownerName) saveLastUsername(ownerName);
   ensureCamera({ rerender: false });
   const response = await emitAck("create_game", {
     username: ownerName,
@@ -921,22 +998,21 @@ async function createGame(formData) {
   });
   if (setJoinData(response)) {
     state.view = "lobby";
-    setNotice("Game created.");
+    render();
+    showMessage("Game created.");
   }
 }
 
 async function joinGame(formData) {
-  const playerName = String(formData.get("playerName") || "").trim() || ensureJoinNamePlaceholder();
-  saveLastUsername(playerName);
   ensureCamera({ rerender: false });
   const response = await emitAck("join_game", {
-    username: playerName,
     clientId: readClientId(),
     gameId: formData.get("gameId")
   });
   if (setJoinData(response)) {
     state.view = "lobby";
-    setNotice("Joined game.");
+    render();
+    showMessage("Joined game.");
   }
 }
 
@@ -950,10 +1026,23 @@ async function rejoinPreviousGame() {
   const username = readLastUsername();
 
   if (urlGameId && !targetPlayerId) {
-    state.view = "join";
-    state.prefillGameId = urlGameId;
-    state.notice = "";
-    render();
+    ensureCamera({ rerender: false });
+    const response = await emitAck("join_game", {
+      gameId: urlGameId,
+      clientId
+    });
+    if (setJoinData(response)) {
+      state.view = "lobby";
+      render();
+      showMessage("Joined game.");
+    } else if (response.error === "Game not found." || response.error === "This game has already started.") {
+      clearStaleGameLink(response.error);
+    } else {
+      state.view = "join";
+      state.prefillGameId = urlGameId;
+      render();
+      showMessage(response.error || "");
+    }
     return;
   }
 
@@ -971,7 +1060,6 @@ async function rejoinPreviousGame() {
     clearStaleGameLink();
   } else {
     localStorage.removeItem(sessionKey);
-    state.notice = "";
     render();
   }
 }
@@ -982,6 +1070,32 @@ async function setReady(ready) {
     ready
   });
   if (!response.ok) setNotice(response.error);
+}
+
+async function updatePlayerName(formData) {
+  const response = await emitAck("update_player_name", {
+    gameId: state.game.id,
+    username: String(formData.get("playerName") || "").trim()
+  });
+  if (response.ok) {
+    setNotice("Name updated.");
+  } else {
+    setNotice(response.error);
+  }
+}
+
+async function updateGameOptions(formData) {
+  const response = await emitAck("update_game_options", {
+    gameId: state.game.id,
+    challengeLanguage: formData.get("challengeLanguage") || "en",
+    initialChallengeInput: String(formData.get("initialChallengeInput") || "").trim(),
+    teamUpEnabled: formData.get("teamUpEnabled") === "on"
+  });
+  if (response.ok) {
+    setNotice("Game options saved.");
+  } else {
+    setNotice(response.error);
+  }
 }
 
 async function startGame() {
@@ -1124,8 +1238,8 @@ function resetLocalGame(message = "", { preserveSession = false } = {}) {
   state.notifications = [];
   state.prefillGameId = "";
   if (!preserveSession) updateGameQuery("");
-  state.notice = message;
   render();
+  showMessage(message);
 }
 
 async function leaveGame() {
@@ -1996,14 +2110,15 @@ function playerRows(players) {
 }
 
 function renderNotice() {
-  return state.notice ? `<div class="notice">${escapeHtml(state.notice)}</div>` : "";
+  return "";
 }
 
-function challengeLanguageOptionMarkup() {
+function challengeLanguageOptionMarkup(selectedValue = "en") {
+  const selected = String(selectedValue || "en").toLowerCase();
   return challengeLanguageOptions
     .map(
       ([value, label]) =>
-        `<option value="${escapeHtml(value)}" ${value === "en" ? "selected" : ""}>${escapeHtml(label)}</option>`
+        `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`
     )
     .join("");
 }
@@ -2220,18 +2335,6 @@ function gameScorePills(game) {
     .join("");
 }
 
-function renderGameNotifications() {
-  return state.notifications
-    .map(
-      (notification) => `
-        <div class="game-toast is-${notification.type}" data-id="${notification.id}">
-          ${escapeHtml(notification.message)}
-        </div>
-      `
-    )
-    .join("");
-}
-
 function renderHome() {
   app.innerHTML = `
     <section class="screen screen-grid">
@@ -2268,14 +2371,11 @@ function renderHome() {
   `;
 
   document.querySelector("#showCreateButton").addEventListener("click", () => {
-    state.view = "create";
-    state.notice = "";
-    state.ownerNamePlaceholder = randomFunnyAnimalUsername();
-    render();
+    showMessage("Creating game...");
+    createGame();
   });
   document.querySelector("#showJoinButton").addEventListener("click", () => {
     state.view = "join";
-    state.notice = "";
     state.joinNamePlaceholder = randomFunnyAnimalUsername();
     render();
   });
@@ -2343,8 +2443,6 @@ function renderCreate() {
 
 function renderJoin() {
   const prefill = normalizeGameIdInput(state.prefillGameId);
-  const username = escapeHtml(readLastUsername());
-  const playerNamePlaceholder = escapeHtml(ensureJoinNamePlaceholder());
   app.innerHTML = `
     <section class="screen screen-grid">
       <div class="hero-side">
@@ -2382,13 +2480,7 @@ function renderJoin() {
             </div>
             <span class="field-hint" id="gameCodeError" aria-live="polite"></span>
           </div>
-          <label class="field">
-            <span>Your name (optional)</span>
-            <div class="name-picker">
-              <input class="text-input" name="playerName" data-random-name-target="playerName" autocomplete="nickname" maxlength="24" placeholder="${playerNamePlaceholder}" value="${username}">
-              ${randomNameButtonMarkup("playerName")}
-            </div>
-          </label>
+          <p class="field-note">You will get a random player name now and can change it in the lobby before you press Ready.</p>
           <button class="primary-button" type="submit">Join game</button>
           <button class="secondary-button" id="backToChoiceButton" type="button">Back</button>
         </form>
@@ -2397,9 +2489,7 @@ function renderJoin() {
   `;
 
   setupGameCodeInput();
-  if (prefill.length === gameCodeLength) {
-    document.querySelector("[name='playerName']")?.focus();
-  } else {
+  if (prefill.length !== gameCodeLength) {
     document.querySelector("#gameIdHidden")?.focus();
   }
   document.querySelector("#joinForm").addEventListener("submit", (event) => {
@@ -2411,7 +2501,6 @@ function renderJoin() {
     }
     joinGame(new FormData(event.currentTarget));
   });
-  setupRandomNamePicker("playerName");
   document.querySelector("#backToChoiceButton").addEventListener("click", () => {
     state.view = "home";
     state.notice = "";
@@ -2425,23 +2514,92 @@ function renderLobby() {
   const isOwner = me?.id === game.ownerPlayerId;
   const cameraReady = Boolean(cameraState.stream);
   const cameraMessage = cameraState.error || (cameraReady ? "Camera ready" : "Camera permission needed");
+  const lobbyNamePlaceholder = escapeHtml(ensureJoinNamePlaceholder());
+  const gameOptionsDisabled = game.status !== "lobby";
   app.innerHTML = `
     <section class="screen lobby-layout">
       <div class="panel-title">
-        ${renderNotice()}
-        <span class="status-chip">${game.status === "loading" ? "loading objects" : "lobby"}</span>
-        ${game.teamUpEnabled ? `<span class="status-chip team-mode-chip">Team-up on</span>` : ""}
-        <h1>Game ID</h1>
-        <div class="game-code">${escapeHtml(game.id)}</div>
-        <div class="copy-row">
-          <input class="text-input" id="gameUrlInput" value="${escapeHtml(state.gameUrl)}" readonly>
-          <button class="secondary-button" id="copyUrlButton" type="button">Copy URL</button>
-        </div>
-        ${state.qrCode ? `<div class="qr-wrap"><img src="${state.qrCode}" alt="QR code for game ${escapeHtml(game.id)}"></div>` : ""}
+        <section class="join-reference-card" aria-labelledby="joinReferenceTitle">
+          <div class="join-reference-head">
+            <span class="status-chip">${game.status === "loading" ? "loading objects" : "lobby"}</span>
+            ${game.teamUpEnabled ? `<span class="status-chip team-mode-chip">Team-up on</span>` : ""}
+            <h1 id="joinReferenceTitle">Join this game</h1>
+          </div>
+          <div class="join-reference-grid">
+            <div class="join-reference-section">
+              <span class="reference-label">Game ID</span>
+              <div class="game-code">${escapeHtml(game.id)}</div>
+            </div>
+            <div class="join-reference-section">
+              <span class="reference-label">Game URL</span>
+              <div class="copy-row">
+                <input class="text-input" id="gameUrlInput" value="${escapeHtml(state.gameUrl)}" readonly>
+                <button class="secondary-button" id="copyUrlButton" type="button">Copy URL</button>
+              </div>
+            </div>
+            ${
+              state.qrCode
+                ? `
+                  <div class="join-reference-section">
+                    <span class="reference-label">QR code</span>
+                    <div class="qr-wrap"><img src="${state.qrCode}" alt="QR code for game ${escapeHtml(game.id)}"></div>
+                  </div>
+                `
+                : ""
+            }
+          </div>
+        </section>
       </div>
       <aside class="compact-panel stack">
         <h2>Players ${game.players.length}/${game.maxPlayers}</h2>
         <ul class="player-list">${playerRows(game.players)}</ul>
+        <details class="lobby-options">
+          <summary>Game options</summary>
+          <div class="lobby-options-stack">
+            <form class="lobby-option-card stack" id="playerNameForm">
+              <h3>Your name</h3>
+              <label class="field">
+                <span>Player name</span>
+                <div class="name-picker">
+                  <input class="text-input" name="playerName" data-random-name-target="playerName" autocomplete="nickname" maxlength="24" placeholder="${lobbyNamePlaceholder}" value="${escapeHtml(me?.username || "")}" ${gameOptionsDisabled ? "disabled" : ""}>
+                  ${randomNameButtonMarkup("playerName")}
+                </div>
+                <small class="field-note">Leave blank or tap the dice for a random name. Saving a name sets you to not ready.</small>
+              </label>
+              <button class="secondary-button" type="submit" ${gameOptionsDisabled ? "disabled" : ""}>Save name</button>
+            </form>
+            ${
+              isOwner
+                ? `
+                  <form class="lobby-option-card stack" id="gameOptionsForm">
+                    <h3>Round options</h3>
+                    <label class="field">
+                      <span>Language</span>
+                      <select class="text-input" name="challengeLanguage" ${gameOptionsDisabled ? "disabled" : ""}>
+                        ${challengeLanguageOptionMarkup(game.challengeLanguage)}
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Objects or AI guide</span>
+                      <textarea class="text-input word-list-input" name="initialChallengeInput" autocomplete="off" autocapitalize="sentences" spellcheck="true" rows="4" placeholder="pencil, backpack&#10;blue shoes; notebook&#10;&#10;or: soft colorful things safe for young kids" ${gameOptionsDisabled ? "disabled" : ""}>${escapeHtml(game.initialChallengeInput || "")}</textarea>
+                      <small class="field-note">Enter a list or describe what AI should generate. AI will refine it for safety and camera recognition. Leave blank for random AI picks.</small>
+                    </label>
+                    <label class="toggle-field">
+                      <input name="teamUpEnabled" type="checkbox" ${game.teamUpEnabled ? "checked" : ""} ${gameOptionsDisabled ? "disabled" : ""}>
+                      <span class="toggle-control" aria-hidden="true"></span>
+                      <span>
+                        <strong>Team-up mode</strong>
+                        <small>Randomly balance players into red and blue teams.</small>
+                      </span>
+                    </label>
+                    <button class="secondary-button" type="submit" ${gameOptionsDisabled ? "disabled" : ""}>Save game options</button>
+                    <small class="field-note">Changing game options resets everyone to not ready.</small>
+                  </form>
+                `
+                : `<p class="field-note">The game owner can edit round options before the game starts.</p>`
+            }
+          </div>
+        </details>
         <div class="camera-lobby-status">
           <p class="camera-message">${escapeHtml(cameraMessage)}</p>
           ${cameraReady ? "" : `<button class="secondary-button" id="enableCameraButton" type="button">Enable camera</button>`}
@@ -2463,11 +2621,25 @@ function renderLobby() {
     </section>
   `;
 
+  document.querySelector("#playerNameForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    updatePlayerName(new FormData(event.currentTarget));
+  });
+  setupRandomNamePicker("playerName");
+  document.querySelector("#gameOptionsForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    updateGameOptions(new FormData(event.currentTarget));
+  });
   document.querySelector("#readyButton").addEventListener("click", () => setReady(!me.ready));
   document.querySelector("#enableCameraButton")?.addEventListener("click", enableCamera);
   document.querySelector("#copyUrlButton").addEventListener("click", async () => {
-    await navigator.clipboard?.writeText(state.gameUrl);
-    setNotice("Game URL copied.");
+    try {
+      await navigator.clipboard?.writeText(state.gameUrl);
+      showMessage("Game URL copied.", "success");
+    } catch {
+      document.querySelector("#gameUrlInput")?.select();
+      showMessage("Copy failed. Select the URL and copy it manually.", "warning");
+    }
   });
   document.querySelector("#startButton")?.addEventListener("click", startGame);
   document.querySelector("#endGameButton")?.addEventListener("click", openGameMenu);
@@ -2557,10 +2729,6 @@ function renderGame() {
       </div>
     </header>
 
-    <div class="game-toast-stack" aria-live="polite">
-      ${renderGameNotifications()}
-    </div>
-
     <footer class="game-bottom-bar">
       <ul class="game-score-strip" aria-label="Scores">
         ${gameScorePills(game)}
@@ -2634,6 +2802,7 @@ function render() {
   clearInterval(state.timerInterval);
   state.timerInterval = null;
 
+  const previousView = state.lastRenderedView;
   state.view = activeViewFromGame(state.game) || state.view;
   renderConnectionPill();
   document.body.classList.toggle("is-game-active", state.view === "game");
@@ -2643,6 +2812,11 @@ function render() {
   if (state.view === "lobby") renderLobby();
   if (state.view === "game") renderGame();
   if (state.view === "end") renderEnd();
+  renderGlobalNotifications();
+  if (previousView && previousView !== state.view) {
+    window.scrollTo({ top: 0, left: 0 });
+  }
+  state.lastRenderedView = state.view;
 
   if (countdownState(state.game)) {
     updateCountdownDisplays();
@@ -2762,6 +2936,7 @@ socket.on("game_state", (game) => {
   });
   state.game = game;
   state.playerId = game.me?.id || state.playerId;
+  if (game.me?.username) saveLastUsername(game.me.username);
   saveSession();
   render();
 });
@@ -2820,9 +2995,10 @@ socket.on("capture_notice", (result) => {
 
 socket.on("game_ended", ({ winner, message }) => {
   clearPendingSubmit();
-  state.notice = message || (winner ? `${winner.username || winner.name} wins.` : "Game ended.");
+  const gameEndedMessage = message || (winner ? `${winner.username || winner.name} wins.` : "Game ended.");
   playGameEndedSound(state.game?.id || "");
   render();
+  showMessage(gameEndedMessage, "success");
 });
 
 socket.on("notice", ({ message }) => {

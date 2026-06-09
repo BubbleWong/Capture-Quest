@@ -359,6 +359,90 @@ test("uses an available funny animal player name when join-game username is blan
   assert.notEqual(joinedA.player.username, joinedB.player.username);
 });
 
+test("blank-name joins reattach the same local client before start", async () => {
+  const { engine, io } = createEngine();
+  const owner = io.createSocket("owner");
+  const playerA = io.createSocket("player-a");
+  const playerAReconnect = io.createSocket("player-a-reconnect");
+  const { game } = engine.createGame(owner, {
+    username: "Host",
+    clientId: clientIds.owner
+  });
+
+  const joined = engine.joinGame(playerA, {
+    gameId: game.id,
+    clientId: clientIds.playerA
+  });
+  const rejoined = engine.joinGame(playerAReconnect, {
+    gameId: game.id,
+    clientId: clientIds.playerA
+  });
+
+  assert.equal(rejoined.error, undefined);
+  assert.equal(rejoined.player.id, joined.player.id);
+  assert.equal(playerA.last("left_game").preserveSession, true);
+  await waitFor(() => !playerA.connected, "previous blank-name session disconnect");
+});
+
+test("edits lobby names and game options before the game starts", async () => {
+  const { engine, io, llmCalls } = createEngine({
+    preparedItems: ["chaussure", "sac"],
+    items: ["livre", "stylo", "chaise"]
+  });
+  const owner = io.createSocket("owner");
+  const playerSocket = io.createSocket("player");
+  const { game, player: ownerPlayer } = engine.createGame(owner, {
+    clientId: clientIds.owner
+  });
+  const joined = engine.joinGame(playerSocket, {
+    gameId: game.id,
+    clientId: clientIds.playerA
+  });
+
+  assert.ok(funnyAnimalUsernames.includes(ownerPlayer.username));
+  assert.ok(funnyAnimalUsernames.includes(joined.player.username));
+  assert.notEqual(ownerPlayer.username, joined.player.username);
+
+  const duplicateName = engine.updatePlayerName(playerSocket, {
+    gameId: game.id,
+    username: ownerPlayer.username
+  });
+  assert.match(duplicateName.error, /already used/);
+
+  joined.player.ready = true;
+  const renamed = engine.updatePlayerName(playerSocket, {
+    gameId: game.id,
+    username: "Scout"
+  });
+  assert.equal(renamed.error, undefined);
+  assert.equal(joined.player.username, "Scout");
+  assert.equal(joined.player.ready, false);
+
+  ownerPlayer.ready = true;
+  joined.player.ready = true;
+  const options = engine.updateGameOptions(owner, {
+    gameId: game.id,
+    challengeLanguage: "fr",
+    initialChallengeInput: "shoe, bag",
+    teamUpEnabled: true
+  });
+  assert.equal(options.error, undefined);
+  assert.equal(game.challengeLanguage, "fr");
+  assert.equal(game.initialChallengeInput, "shoe, bag");
+  assert.equal(game.teamUpEnabled, true);
+  assert.equal(game.teams.length, 2);
+  assert.equal(ownerPlayer.ready, false);
+  assert.equal(joined.player.ready, false);
+  assert.equal(owner.last("game_state").challengeLanguage, "fr");
+  assert.equal(owner.last("game_state").initialChallengeInput, "shoe, bag");
+
+  const blockedStart = await engine.startGame(owner, { gameId: game.id });
+  assert.match(blockedStart.error, /Every player must be ready/);
+
+  await startReadyGame(engine, owner, game, [playerSocket]);
+  assert.equal(llmCalls.prepareInitialItems[0].language, "French");
+});
+
 test("local AI fallback respects Chinese script and dialect selections", async () => {
   const llm = createLlm(
     {
