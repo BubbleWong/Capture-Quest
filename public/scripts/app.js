@@ -93,55 +93,55 @@ const funnyAnimalUsernames = [
   "Skater Squirrel"
 ];
 const animalAvatarProfiles = {
-  ant: { label: "Ant", kind: "bug", bg: "#ffe6ef", face: "#e84d77", accent: "#172033" },
-  badger: { label: "Badger", kind: "stripe", bg: "#eef3ff", face: "#ffffff", accent: "#172033" },
+  ant: { label: "Ant", kind: "ant", bg: "#ffe6ef", face: "#e84d77", accent: "#172033" },
+  badger: { label: "Badger", kind: "badger", bg: "#eef3ff", face: "#ffffff", accent: "#172033" },
   bear: { label: "Bear", kind: "bear", bg: "#ffe7bf", face: "#9a6b45", accent: "#f4c28a" },
-  beaver: { label: "Beaver", kind: "teeth", bg: "#ffe7bf", face: "#9c623a", accent: "#ffffff" },
-  camel: { label: "Camel", kind: "mammal", bg: "#fff1bf", face: "#d79545", accent: "#8c552e" },
-  capybara: { label: "Capybara", kind: "mammal", bg: "#ffe7bf", face: "#b77d45", accent: "#6b4427" },
-  cheetah: { label: "Cheetah", kind: "spots", bg: "#fff1ad", face: "#f0b74d", accent: "#172033" },
-  cobra: { label: "Cobra", kind: "snake", bg: "#d9f8c4", face: "#52b56b", accent: "#172033" },
+  beaver: { label: "Beaver", kind: "beaver", bg: "#ffe7bf", face: "#9c623a", accent: "#ffffff" },
+  camel: { label: "Camel", kind: "camel", bg: "#fff1bf", face: "#d79545", accent: "#8c552e" },
+  capybara: { label: "Capybara", kind: "capybara", bg: "#ffe7bf", face: "#b77d45", accent: "#6b4427" },
+  cheetah: { label: "Cheetah", kind: "cheetah", bg: "#fff1ad", face: "#f0b74d", accent: "#172033" },
+  cobra: { label: "Cobra", kind: "cobra", bg: "#d9f8c4", face: "#52b56b", accent: "#172033" },
   crab: { label: "Crab", kind: "crab", bg: "#ffe4df", face: "#ff6f61", accent: "#172033" },
-  dolphin: { label: "Dolphin", kind: "fish", bg: "#dcf8ff", face: "#4b9dff", accent: "#ffffff" },
-  donkey: { label: "Donkey", kind: "rabbit", bg: "#eef3ff", face: "#9f8d7a", accent: "#f0d7bc" },
-  duck: { label: "Duck", kind: "bird", bg: "#fff4b8", face: "#ffd84f", accent: "#ff9f1c" },
+  dolphin: { label: "Dolphin", kind: "dolphin", bg: "#dcf8ff", face: "#4b9dff", accent: "#ffffff" },
+  donkey: { label: "Donkey", kind: "donkey", bg: "#eef3ff", face: "#9f8d7a", accent: "#f0d7bc" },
+  duck: { label: "Duck", kind: "duck", bg: "#fff4b8", face: "#ffd84f", accent: "#ff9f1c" },
   elephant: { label: "Elephant", kind: "elephant", bg: "#e8f0ff", face: "#95a9c8", accent: "#ffffff" },
-  ferret: { label: "Ferret", kind: "stripe", bg: "#fff0cf", face: "#c79658", accent: "#ffffff" },
+  ferret: { label: "Ferret", kind: "ferret", bg: "#fff0cf", face: "#c79658", accent: "#ffffff" },
   frog: { label: "Frog", kind: "frog", bg: "#ddffd1", face: "#66c85f", accent: "#ffffff" },
-  gecko: { label: "Gecko", kind: "lizard", bg: "#defbd4", face: "#70d36b", accent: "#ffe35e" },
-  goat: { label: "Goat", kind: "horn", bg: "#f2f4ff", face: "#ffffff", accent: "#b98a52" },
-  goose: { label: "Goose", kind: "bird", bg: "#eaf6ff", face: "#ffffff", accent: "#ff9f1c" },
-  hamster: { label: "Hamster", kind: "mammal", bg: "#fff0cf", face: "#d69a58", accent: "#fff1d6" },
-  hippo: { label: "Hippo", kind: "mammal", bg: "#ede6ff", face: "#9c8ccd", accent: "#ded4ff" },
-  jaguar: { label: "Jaguar", kind: "spots", bg: "#fff1ad", face: "#d89432", accent: "#172033" },
-  koala: { label: "Koala", kind: "bear", bg: "#edf2f7", face: "#9aa8b8", accent: "#ffffff" },
+  gecko: { label: "Gecko", kind: "gecko", bg: "#defbd4", face: "#70d36b", accent: "#ffe35e" },
+  goat: { label: "Goat", kind: "goat", bg: "#f2f4ff", face: "#ffffff", accent: "#b98a52" },
+  goose: { label: "Goose", kind: "goose", bg: "#eaf6ff", face: "#ffffff", accent: "#ff9f1c" },
+  hamster: { label: "Hamster", kind: "hamster", bg: "#fff0cf", face: "#d69a58", accent: "#fff1d6" },
+  hippo: { label: "Hippo", kind: "hippo", bg: "#ede6ff", face: "#9c8ccd", accent: "#ded4ff" },
+  jaguar: { label: "Jaguar", kind: "jaguar", bg: "#fff1ad", face: "#d89432", accent: "#172033" },
+  koala: { label: "Koala", kind: "koala", bg: "#edf2f7", face: "#9aa8b8", accent: "#ffffff" },
   lion: { label: "Lion", kind: "lion", bg: "#fff0b8", face: "#e69a31", accent: "#b66b23" },
-  llama: { label: "Llama", kind: "rabbit", bg: "#fff3df", face: "#f2d0a7", accent: "#9d6b44" },
-  meerkat: { label: "Meerkat", kind: "stripe", bg: "#fff1bf", face: "#c48a4b", accent: "#6e472b" },
-  mole: { label: "Mole", kind: "mammal", bg: "#eadfd5", face: "#8b6a5a", accent: "#ffb8ca" },
-  monkey: { label: "Monkey", kind: "bear", bg: "#ffe2bf", face: "#9d6239", accent: "#f3bc84" },
-  moose: { label: "Moose", kind: "antler", bg: "#fff0cf", face: "#a66b3f", accent: "#74411f" },
+  llama: { label: "Llama", kind: "llama", bg: "#fff3df", face: "#f2d0a7", accent: "#9d6b44" },
+  meerkat: { label: "Meerkat", kind: "meerkat", bg: "#fff1bf", face: "#c48a4b", accent: "#6e472b" },
+  mole: { label: "Mole", kind: "mole", bg: "#eadfd5", face: "#8b6a5a", accent: "#ffb8ca" },
+  monkey: { label: "Monkey", kind: "monkey", bg: "#ffe2bf", face: "#9d6239", accent: "#f3bc84" },
+  moose: { label: "Moose", kind: "moose", bg: "#fff0cf", face: "#a66b3f", accent: "#74411f" },
   narwhal: { label: "Narwhal", kind: "narwhal", bg: "#dcf8ff", face: "#76b9e8", accent: "#ffffff" },
-  otter: { label: "Otter", kind: "mammal", bg: "#e7f8ff", face: "#8f6745", accent: "#f0c28a" },
+  otter: { label: "Otter", kind: "otter", bg: "#e7f8ff", face: "#8f6745", accent: "#f0c28a" },
   owl: { label: "Owl", kind: "owl", bg: "#efe8ff", face: "#9b75d6", accent: "#ffe35e" },
   panda: { label: "Panda", kind: "panda", bg: "#f2f6ff", face: "#ffffff", accent: "#172033" },
-  panther: { label: "Panther", kind: "cat", bg: "#dfe7ff", face: "#28324f", accent: "#7ad6ff" },
-  parrot: { label: "Parrot", kind: "bird", bg: "#e2ffe2", face: "#28b86f", accent: "#ff6f61" },
+  panther: { label: "Panther", kind: "panther", bg: "#dfe7ff", face: "#28324f", accent: "#7ad6ff" },
+  parrot: { label: "Parrot", kind: "parrot", bg: "#e2ffe2", face: "#28b86f", accent: "#ff6f61" },
   penguin: { label: "Penguin", kind: "penguin", bg: "#e9f7ff", face: "#172033", accent: "#ffffff" },
   rabbit: { label: "Rabbit", kind: "rabbit", bg: "#fff0f8", face: "#ffffff", accent: "#ffb8d6" },
-  rhino: { label: "Rhino", kind: "horn", bg: "#eaf0f4", face: "#8ea2ad", accent: "#ffffff" },
-  seal: { label: "Seal", kind: "mammal", bg: "#e7f8ff", face: "#8eb0c5", accent: "#ffffff" },
+  rhino: { label: "Rhino", kind: "rhino", bg: "#eaf0f4", face: "#8ea2ad", accent: "#ffffff" },
+  seal: { label: "Seal", kind: "seal", bg: "#e7f8ff", face: "#8eb0c5", accent: "#ffffff" },
   seahorse: { label: "Seahorse", kind: "seahorse", bg: "#ddfbff", face: "#f0aa54", accent: "#172033" },
-  shark: { label: "Shark", kind: "fish", bg: "#dcf8ff", face: "#6e91ad", accent: "#ffffff" },
-  sloth: { label: "Sloth", kind: "stripe", bg: "#fff2d9", face: "#a77c54", accent: "#f5d2a6" },
+  shark: { label: "Shark", kind: "shark", bg: "#dcf8ff", face: "#6e91ad", accent: "#ffffff" },
+  sloth: { label: "Sloth", kind: "sloth", bg: "#fff2d9", face: "#a77c54", accent: "#f5d2a6" },
   snail: { label: "Snail", kind: "snail", bg: "#ecffd9", face: "#8fcf5f", accent: "#d6a052" },
-  squirrel: { label: "Squirrel", kind: "tail", bg: "#fff0d8", face: "#c17335", accent: "#f0b978" },
-  tiger: { label: "Tiger", kind: "cat", bg: "#fff0bf", face: "#f08d32", accent: "#172033" },
-  toucan: { label: "Toucan", kind: "bird", bg: "#e2f8ff", face: "#172033", accent: "#ffba31" },
+  squirrel: { label: "Squirrel", kind: "squirrel", bg: "#fff0d8", face: "#c17335", accent: "#f0b978" },
+  tiger: { label: "Tiger", kind: "tiger", bg: "#fff0bf", face: "#f08d32", accent: "#172033" },
+  toucan: { label: "Toucan", kind: "toucan", bg: "#e2f8ff", face: "#172033", accent: "#ffba31" },
   turtle: { label: "Turtle", kind: "turtle", bg: "#dfffd2", face: "#65b46a", accent: "#3f8f4e" },
-  walrus: { label: "Walrus", kind: "tusk", bg: "#e7f8ff", face: "#a56b4c", accent: "#ffffff" },
-  wombat: { label: "Wombat", kind: "bear", bg: "#fff0d8", face: "#9b7154", accent: "#e5b790" },
-  zebra: { label: "Zebra", kind: "stripe", bg: "#f4f8ff", face: "#ffffff", accent: "#172033" }
+  walrus: { label: "Walrus", kind: "walrus", bg: "#e7f8ff", face: "#a56b4c", accent: "#ffffff" },
+  wombat: { label: "Wombat", kind: "wombat", bg: "#fff0d8", face: "#9b7154", accent: "#e5b790" },
+  zebra: { label: "Zebra", kind: "zebra", bg: "#f4f8ff", face: "#ffffff", accent: "#172033" }
 };
 const cameraDebugEnabled =
   query.get("debugCamera") === "1" || localStorage.getItem("captureQuestDebugCamera") === "1";
@@ -734,47 +734,107 @@ function animalFaceMarkup(profile) {
 function animalAvatarFeatureMarkup(profile) {
   const face = escapeHtml(profile.face);
   const accent = escapeHtml(profile.accent);
+  const eyes = animalEyesMarkup();
+  const nose = `<path d="M20 23l-2 2h4z" fill="#172033"/>`;
   switch (profile.kind) {
-    case "antler":
-      return `<path d="M11 13c-4-5-1-8 2-4m16 4c4-5 1-8-2-4M13 9v7m14-7v7" fill="none" stroke="${accent}" stroke-width="3" stroke-linecap="round"/>${animalFaceMarkup(profile)}`;
-    case "bird":
-      return `<circle cx="20" cy="20" r="11" fill="${face}"/><path d="M20 21l11 4-11 5z" fill="${accent}"/><path d="M13 23c2 5 9 6 13 0" fill="none" stroke="${accent}" stroke-width="3" stroke-linecap="round" opacity=".55"/>${animalEyesMarkup()}`;
-    case "bug":
-      return `<ellipse cx="20" cy="22" rx="10" ry="12" fill="${face}"/><path d="M12 11c-3-3-5-1-5 2m21-2c3-3 5-1 5 2M10 21H6m28 0h-4M12 28H8m24 0h-4" fill="none" stroke="${accent}" stroke-width="2.3" stroke-linecap="round"/><path d="M20 11v22M12 20h16" stroke="${accent}" stroke-width="2" opacity=".5"/>${animalEyesMarkup()}`;
+    case "ant":
+      return `<ellipse cx="20" cy="22" rx="10" ry="12" fill="${face}"/><path d="M12 10c-3-4-6-2-5 1m21-1c3-4 6-2 5 1" fill="none" stroke="${face}" stroke-width="2" stroke-linecap="round"/><path d="M10 20H5m30 0h-5M10 27H6m28 0h-4" fill="none" stroke="${face}" stroke-width="2" stroke-linecap="round"/><path d="M20 13v20" stroke="${accent}" stroke-width="1.5" opacity=".4"/>${eyes}`;
+    case "badger":
+      return `<circle cx="13" cy="13" r="5" fill="${accent}"/><circle cx="27" cy="13" r="5" fill="${accent}"/><circle cx="20" cy="22" r="11" fill="${face}"/><path d="M20 11v20" stroke="${accent}" stroke-width="7"/><ellipse cx="20" cy="26" rx="4" ry="3" fill="${face}"/>${eyes}${nose}`;
+    case "bear":
+      return `<circle cx="12" cy="13" r="5.5" fill="${face}"/><circle cx="28" cy="13" r="5.5" fill="${face}"/><circle cx="12" cy="13" r="3" fill="${accent}"/><circle cx="28" cy="13" r="3" fill="${accent}"/><circle cx="20" cy="22" r="11" fill="${face}"/><ellipse cx="20" cy="26" rx="5" ry="4" fill="${accent}"/>${eyes}<ellipse cx="20" cy="24" rx="2.5" ry="1.8" fill="#172033"/>`;
+    case "beaver":
+      return `<circle cx="14" cy="14" r="4" fill="${face}"/><circle cx="26" cy="14" r="4" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><ellipse cx="20" cy="25" rx="5" ry="3.5" fill="${accent}"/><rect x="17.5" y="27" width="2.5" height="4" rx=".6" fill="${accent}" stroke="#172033" stroke-width=".7"/><rect x="20" y="27" width="2.5" height="4" rx=".6" fill="${accent}" stroke="#172033" stroke-width=".7"/>${eyes}${nose}`;
+    case "camel":
+      return `<ellipse cx="20" cy="10" rx="6" ry="4" fill="${face}"/><circle cx="12" cy="16" r="3" fill="${face}"/><circle cx="28" cy="16" r="3" fill="${face}"/><ellipse cx="20" cy="23" rx="10" ry="11" fill="${face}"/><ellipse cx="20" cy="27" rx="5" ry="3.5" fill="${accent}"/>${eyes}${nose}`;
+    case "capybara":
+      return `<circle cx="14" cy="14" r="2.5" fill="${face}"/><circle cx="26" cy="14" r="2.5" fill="${face}"/><ellipse cx="20" cy="23" rx="11" ry="12" fill="${face}"/><ellipse cx="20" cy="26" rx="6" ry="4" fill="${accent}"/><ellipse cx="20" cy="24" rx="3" ry="2" fill="${accent}" opacity=".7"/>${eyes}<ellipse cx="20" cy="24" rx="2" ry="1.3" fill="#172033"/>`;
+    case "cheetah":
+      return `<circle cx="13" cy="13" r="5" fill="${face}"/><circle cx="27" cy="13" r="5" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><path d="M15 21c-1 3-2 6-4 9m14-9c1 3 2 6 4 9" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round"/><circle cx="11" cy="18" r="1.5" fill="${accent}"/><circle cx="29" cy="17" r="1.5" fill="${accent}"/><circle cx="25" cy="28" r="1.2" fill="${accent}"/><ellipse cx="20" cy="26" rx="4" ry="3" fill="${accent}" opacity=".4"/>${eyes}${nose}`;
+    case "cobra":
+      return `<path d="M8 14c2-7 7-9 12-8 5-1 10 1 12 8v12c0 6-5 10-12 10S8 32 8 26Z" fill="${face}"/><ellipse cx="20" cy="25" rx="5" ry="3" fill="${accent}" opacity=".5"/><path d="M14 21h12M16 28h8" fill="none" stroke="${accent}" stroke-width="1.5" opacity=".4"/>${eyes}<path d="M18 24c2 2 2 2 4 0" fill="none" stroke="#172033" stroke-width="1.5" stroke-linecap="round"/>`;
     case "crab":
-      return `<ellipse cx="20" cy="23" rx="10" ry="8" fill="${face}"/><path d="M11 18l-6-5m24 5 6-5M9 27l-5 3m27-3 5 3" fill="none" stroke="${face}" stroke-width="4" stroke-linecap="round"/><circle cx="6" cy="12" r="3.5" fill="${face}"/><circle cx="34" cy="12" r="3.5" fill="${face}"/>${animalEyesMarkup()}`;
+      return `<ellipse cx="20" cy="23" rx="10" ry="8" fill="${face}"/><path d="M11 18l-6-5m24 5 6-5M9 27l-5 3m27-3 5 3" fill="none" stroke="${face}" stroke-width="4" stroke-linecap="round"/><circle cx="6" cy="12" r="3.5" fill="${face}"/><circle cx="34" cy="12" r="3.5" fill="${face}"/>${eyes}`;
+    case "dolphin":
+      return `<path d="M8 20c5-8 17-8 24 0-7 8-19 8-24 0Z" fill="${face}"/><path d="M20 12c2-5 5-6 7-3" fill="${face}" stroke="${face}" stroke-width="2" stroke-linecap="round"/><path d="M8 20 3 14v12Z" fill="${accent}"/><circle cx="27" cy="18" r="1.7" fill="#172033"/><path d="M14 23c3 2 6 2 9 0" fill="none" stroke="${accent}" stroke-width="1.5" stroke-linecap="round"/>`;
+    case "donkey":
+      return `<path d="M10 16c-6-10-2-14 4-6m16 6c6-10 2-14-4-6" fill="${face}" stroke="#172033" stroke-width="1.4" stroke-linecap="round"/><path d="M12 13c-3-5-1-7 2-3m12 3c3-5 1-7-2-3" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round"/><circle cx="20" cy="22" r="11" fill="${face}"/><ellipse cx="20" cy="26" rx="6" ry="4.5" fill="${accent}"/>${eyes}<ellipse cx="20" cy="25" rx="2" ry="1.5" fill="#172033"/>`;
+    case "duck":
+      return `<circle cx="20" cy="20" r="11" fill="${face}"/><path d="M14 24c0 3 5 4 12 1" fill="${accent}" stroke="${accent}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 22c3 6 10 6 14 0" fill="none" stroke="${accent}" stroke-width="2.5" stroke-linecap="round" opacity=".5"/>${eyes}`;
     case "elephant":
-      return `<circle cx="12" cy="21" r="8" fill="${face}" opacity=".75"/><circle cx="28" cy="21" r="8" fill="${face}" opacity=".75"/>${animalFaceMarkup(profile)}<path d="M20 23c5 7-4 8 0 12" fill="none" stroke="${face}" stroke-width="5" stroke-linecap="round"/>`;
-    case "fish":
-      return `<path d="M8 20c5-8 17-8 24 0-7 8-19 8-24 0Z" fill="${face}"/><path d="M8 20 3 14v12Z" fill="${accent}"/><circle cx="25" cy="18" r="1.7" fill="#172033"/><path d="M20 24c3 2 6 2 9 0" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round"/>`;
+      return `<circle cx="10" cy="21" r="8" fill="${face}" opacity=".75"/><circle cx="30" cy="21" r="8" fill="${face}" opacity=".75"/><circle cx="13" cy="15" r="5" fill="${face}"/><circle cx="27" cy="15" r="5" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><ellipse cx="20" cy="25" rx="5" ry="3.8" fill="${accent}" opacity=".9"/>${eyes}<path d="M20 23c5 7-4 8 0 12" fill="none" stroke="${face}" stroke-width="5" stroke-linecap="round"/>`;
+    case "ferret":
+      return `<circle cx="14" cy="12" r="3.5" fill="${face}"/><circle cx="26" cy="12" r="3.5" fill="${face}"/><ellipse cx="20" cy="23" rx="9" ry="12" fill="${face}"/><ellipse cx="15" cy="19" rx="3.5" ry="2.5" fill="#172033" opacity=".2"/><ellipse cx="25" cy="19" rx="3.5" ry="2.5" fill="#172033" opacity=".2"/><ellipse cx="20" cy="27" rx="4.5" ry="3" fill="${accent}"/>${eyes}${nose}`;
     case "frog":
-      return `<circle cx="14" cy="14" r="5" fill="${face}"/><circle cx="26" cy="14" r="5" fill="${face}"/>${animalFaceMarkup(profile)}<circle cx="14" cy="14" r="1.6" fill="#172033"/><circle cx="26" cy="14" r="1.6" fill="#172033"/><path d="M15 26c3 3 7 3 10 0" fill="none" stroke="#172033" stroke-width="2" stroke-linecap="round"/>`;
-    case "horn":
-      return `<path d="M13 12 10 5l8 6m9 1 3-7-8 6" fill="${accent}" stroke="#172033" stroke-width="1.4" stroke-linejoin="round"/>${animalFaceMarkup(profile)}<path d="M20 13 23 7l3 8" fill="${accent}" stroke="#172033" stroke-width="1.4" stroke-linejoin="round"/>`;
+      return `<circle cx="14" cy="14" r="5" fill="${face}"/><circle cx="26" cy="14" r="5" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><ellipse cx="20" cy="25" rx="5" ry="3.8" fill="${accent}" opacity=".9"/><circle cx="14" cy="14" r="1.6" fill="#172033"/><circle cx="26" cy="14" r="1.6" fill="#172033"/>${eyes}<path d="M14 27c3 3 9 3 12 0" fill="none" stroke="#172033" stroke-width="2" stroke-linecap="round"/>`;
+    case "gecko":
+      return `<ellipse cx="20" cy="21" rx="9" ry="12" fill="${face}"/><circle cx="14" cy="14" r="4" fill="${accent}"/><circle cx="26" cy="14" r="4" fill="${accent}"/><circle cx="14" cy="14" r="1.8" fill="#172033"/><circle cx="26" cy="14" r="1.8" fill="#172033"/><path d="M29 17c4 0 5 3 2 5M11 17c-4 0-5 3-2 5M16 30l-4 4m12-4 4 4" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round"/><circle cx="17" cy="23" r="1.5" fill="${accent}" opacity=".5"/><circle cx="24" cy="26" r="1.5" fill="${accent}" opacity=".5"/>`;
+    case "goat":
+      return `<path d="M12 14 8 5l7 8m9-8-7 8 4-9" fill="${accent}" stroke="#172033" stroke-width="1.4" stroke-linejoin="round"/><circle cx="13" cy="15" r="4.5" fill="${face}"/><circle cx="27" cy="15" r="4.5" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><ellipse cx="20" cy="26" rx="5" ry="3.5" fill="${accent}" opacity=".8"/><path d="M20 30v4" stroke="${accent}" stroke-width="3" stroke-linecap="round"/>${eyes}${nose}`;
+    case "goose":
+      return `<circle cx="20" cy="20" r="12" fill="${face}"/><path d="M15 24l5-2 5 2" fill="${accent}" stroke="${accent}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 27c3 2 9 2 12 0" fill="none" stroke="${face}" stroke-width="1.5" opacity=".4"/><circle cx="16" cy="17" r="1.7" fill="#172033"/><circle cx="24" cy="17" r="1.7" fill="#172033"/>`;
+    case "hamster":
+      return `<circle cx="14" cy="14" r="3" fill="${face}"/><circle cx="26" cy="14" r="3" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><circle cx="11" cy="24" r="5" fill="${accent}"/><circle cx="29" cy="24" r="5" fill="${accent}"/>${eyes}${nose}<path d="M18 26c1 1 3 1 4 0" fill="none" stroke="#172033" stroke-width="1" stroke-linecap="round"/>`;
+    case "hippo":
+      return `<circle cx="16" cy="11" r="3" fill="${face}"/><circle cx="24" cy="11" r="3" fill="${face}"/><circle cx="20" cy="20" r="12" fill="${face}"/><ellipse cx="20" cy="27" rx="8" ry="5.5" fill="${accent}"/><circle cx="16" cy="26" r="1.5" fill="#172033" opacity=".5"/><circle cx="24" cy="26" r="1.5" fill="#172033" opacity=".5"/>${eyes}${nose}`;
+    case "jaguar":
+      return `<circle cx="13" cy="13" r="5" fill="${face}"/><circle cx="27" cy="13" r="5" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><circle cx="12" cy="20" r="2.5" fill="none" stroke="${accent}" stroke-width="1.2"/><circle cx="28" cy="19" r="2.5" fill="none" stroke="${accent}" stroke-width="1.2"/><circle cx="24" cy="28" r="2" fill="none" stroke="${accent}" stroke-width="1.2"/><circle cx="15" cy="28" r="2" fill="none" stroke="${accent}" stroke-width="1.2"/><ellipse cx="20" cy="26" rx="4" ry="3" fill="${accent}" opacity=".4"/>${eyes}${nose}`;
+    case "koala":
+      return `<circle cx="10" cy="16" r="7" fill="${face}"/><circle cx="30" cy="16" r="7" fill="${face}"/><circle cx="10" cy="16" r="4" fill="${accent}"/><circle cx="30" cy="16" r="4" fill="${accent}"/><circle cx="20" cy="22" r="11" fill="${face}"/><ellipse cx="20" cy="24" rx="3.5" ry="2.5" fill="#172033"/>${eyes}`;
     case "lion":
-      return `<circle cx="20" cy="20" r="14" fill="${accent}"/><circle cx="20" cy="21" r="10" fill="${face}"/>${animalEyesMarkup()}<path d="M17 25h6l-3 3z" fill="#172033"/>`;
-    case "lizard":
-      return `<ellipse cx="20" cy="21" rx="9" ry="12" fill="${face}"/><path d="M29 16c4 0 5 4 2 6M11 16c-4 0-5 4-2 6M17 28l-5 5m11-5 5 5" fill="none" stroke="${accent}" stroke-width="2.4" stroke-linecap="round"/><circle cx="16" cy="18" r="1.8" fill="#172033"/><circle cx="24" cy="18" r="1.8" fill="#172033"/>`;
+      return `<circle cx="20" cy="20" r="14" fill="${accent}"/><circle cx="20" cy="21" r="10" fill="${face}"/>${eyes}<path d="M17 25h6l-3 3z" fill="#172033"/>`;
+    case "llama":
+      return `<path d="M12 16c-2-10 0-14 4-8m12 8c2-10 0-14-4-8" fill="${face}" stroke="#172033" stroke-width="1.4" stroke-linecap="round"/><circle cx="20" cy="22" r="11" fill="${face}"/><ellipse cx="20" cy="26" rx="5" ry="3.5" fill="${accent}"/><path d="M10 18c1-1 2-1 3 0m14 0c1-1 2-1 3 0" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round"/>${eyes}${nose}`;
+    case "meerkat":
+      return `<ellipse cx="20" cy="22" rx="8" ry="13" fill="${face}"/><circle cx="14" cy="14" r="3" fill="${face}"/><circle cx="26" cy="14" r="3" fill="${face}"/><ellipse cx="20" cy="26" rx="4" ry="3" fill="${accent}"/><circle cx="16" cy="18" r="2.2" fill="#172033"/><circle cx="24" cy="18" r="2.2" fill="#172033"/><circle cx="16" cy="17.5" r="1" fill="${accent}"/><circle cx="24" cy="17.5" r="1" fill="${accent}"/><path d="M20 22l-1.5 1.5h3z" fill="#172033"/>`;
+    case "mole":
+      return `<circle cx="14" cy="14" r="4" fill="${face}"/><circle cx="26" cy="14" r="4" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><path d="M15 19h3m4 0h3" stroke="#172033" stroke-width="2" stroke-linecap="round"/><ellipse cx="20" cy="23" rx="4" ry="3" fill="${accent}"/><path d="M10 28l-4 3m-1-2 2 1m25-2 4 3m1-2-2 1" fill="none" stroke="${face}" stroke-width="2.5" stroke-linecap="round"/>`;
+    case "monkey":
+      return `<circle cx="9" cy="20" r="5" fill="${face}"/><circle cx="31" cy="20" r="5" fill="${face}"/><circle cx="9" cy="20" r="3" fill="${accent}"/><circle cx="31" cy="20" r="3" fill="${accent}"/><circle cx="20" cy="20" r="11" fill="${face}"/><ellipse cx="20" cy="22" rx="8" ry="8" fill="${accent}"/>${eyes}<ellipse cx="20" cy="25" rx="3" ry="2" fill="${accent}" opacity=".6"/>${nose}`;
+    case "moose":
+      return `<path d="M11 13c-4-5-1-8 2-4m16 4c4-5 1-8-2-4M8 8c-3-1-4 2-2 4h6M32 8c3-1 4 2 2 4h-6" fill="none" stroke="${accent}" stroke-width="3" stroke-linecap="round"/><circle cx="13" cy="15" r="5" fill="${face}"/><circle cx="27" cy="15" r="5" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><ellipse cx="20" cy="26" rx="5" ry="3.8" fill="${accent}" opacity=".9"/>${eyes}${nose}`;
     case "narwhal":
-      return `<path d="M20 6 25 16h-8Z" fill="${accent}" stroke="#172033" stroke-width="1.4"/>${animalAvatarFeatureMarkup({ ...profile, kind: "fish" })}`;
+      return `<path d="M20 6 25 16h-8Z" fill="${accent}" stroke="#172033" stroke-width="1.4"/><path d="M8 20c5-8 17-8 24 0-7 8-19 8-24 0Z" fill="${face}"/><path d="M8 20 3 14v12Z" fill="${accent}"/><circle cx="25" cy="18" r="1.7" fill="#172033"/><path d="M14 23c3 2 7 2 10 0" fill="none" stroke="${accent}" stroke-width="1.5" stroke-linecap="round"/>`;
+    case "otter":
+      return `<circle cx="14" cy="14" r="4" fill="${face}"/><circle cx="26" cy="14" r="4" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><ellipse cx="20" cy="26" rx="6" ry="4.5" fill="${accent}"/><path d="M10 23h-4m24 0h4M11 26h-3m24 0h3" fill="none" stroke="${accent}" stroke-width="1.2" stroke-linecap="round"/>${eyes}<ellipse cx="20" cy="24" rx="2" ry="1.5" fill="#172033"/>`;
     case "owl":
       return `<path d="M10 12c2-3 6-4 10-1 4-3 8-2 10 1v12c0 7-5 11-10 11S10 31 10 24Z" fill="${face}"/><circle cx="16" cy="20" r="5" fill="${accent}"/><circle cx="24" cy="20" r="5" fill="${accent}"/><circle cx="16" cy="20" r="1.7" fill="#172033"/><circle cx="24" cy="20" r="1.7" fill="#172033"/><path d="M20 23l-3 4h6z" fill="#ff9f1c"/>`;
     case "panda":
-      return `<circle cx="12" cy="12" r="5" fill="${accent}"/><circle cx="28" cy="12" r="5" fill="${accent}"/><circle cx="20" cy="22" r="11" fill="${face}"/><circle cx="16" cy="20" r="4" fill="${accent}"/><circle cx="24" cy="20" r="4" fill="${accent}"/><circle cx="16" cy="20" r="1.3" fill="#ffffff"/><circle cx="24" cy="20" r="1.3" fill="#ffffff"/><path d="M20 24l-3 3h6z" fill="${accent}"/>`;
+      return `<circle cx="12" cy="12" r="5" fill="${accent}"/><circle cx="28" cy="12" r="5" fill="${accent}"/><circle cx="20" cy="22" r="11" fill="${face}"/><circle cx="16" cy="20" r="4" fill="${accent}"/><circle cx="24" cy="20" r="4" fill="${accent}"/><circle cx="16" cy="20" r="1.3" fill="${face}"/><circle cx="24" cy="20" r="1.3" fill="${face}"/><path d="M20 24l-3 3h6z" fill="${accent}"/>`;
+    case "panther":
+      return `<path d="M12 15l-4-8c2-2 5-1 6 2m14 6 4-8c-2-2-5-1-6 2" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><circle cx="16" cy="19" r="2" fill="${accent}"/><circle cx="24" cy="19" r="2" fill="${accent}"/><circle cx="16" cy="19" r="1" fill="#172033"/><circle cx="24" cy="19" r="1" fill="#172033"/><path d="M13 25l5-3m9 3-5-3" fill="none" stroke="${accent}" stroke-width="1.5" stroke-linecap="round" opacity=".5"/>${nose}`;
+    case "parrot":
+      return `<circle cx="20" cy="21" r="11" fill="${face}"/><path d="M15 8c2-4 8-4 10 0" fill="${accent}" stroke="${face}" stroke-width="2"/><path d="M24 24l6-2c1 3-1 5-4 4" fill="${accent}"/>${eyes}<path d="M14 26c3 3 9 3 12 0" fill="none" stroke="#172033" stroke-width="1.5" stroke-linecap="round" opacity=".4"/>`;
     case "penguin":
-      return `<ellipse cx="20" cy="22" rx="11" ry="14" fill="${face}"/><ellipse cx="20" cy="25" rx="7" ry="9" fill="${accent}"/>${animalEyesMarkup()}<path d="M20 21l-4 3h8z" fill="#ff9f1c"/>`;
+      return `<ellipse cx="20" cy="22" rx="11" ry="14" fill="${face}"/><ellipse cx="20" cy="25" rx="7" ry="9" fill="${accent}"/>${eyes}<path d="M20 21l-4 3h8z" fill="#ff9f1c"/>`;
     case "rabbit":
-      return `<path d="M14 14C9 5 12 1 16 10m10 4c5-9 2-13-2-4" fill="${face}" stroke="#172033" stroke-width="1.6" stroke-linecap="round"/>${animalFaceMarkup(profile)}<path d="M15 13c-2-4-1-6 1-3m9 3c2-4 1-6-1-3" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round"/>`;
+      return `<path d="M14 14C9 5 12 1 16 10m10 4c5-9 2-13-2-4" fill="${face}" stroke="#172033" stroke-width="1.6" stroke-linecap="round"/><path d="M15 12c-2-4-1-6 1-3m9 3c2-4 1-6-1-3" fill="none" stroke="${accent}" stroke-width="2.5" stroke-linecap="round"/><circle cx="13" cy="15" r="5" fill="${face}"/><circle cx="27" cy="15" r="5" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><ellipse cx="20" cy="25" rx="5" ry="3.8" fill="${accent}" opacity=".9"/>${eyes}${nose}`;
+    case "rhino":
+      return `<circle cx="13" cy="14" r="5" fill="${face}"/><circle cx="27" cy="14" r="5" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><ellipse cx="20" cy="26" rx="6" ry="4" fill="${accent}"/><path d="M20 17l-3 6h6z" fill="${accent}" stroke="#172033" stroke-width="1.2" stroke-linejoin="round"/>${eyes}${nose}`;
+    case "seal":
+      return `<circle cx="20" cy="21" r="12" fill="${face}"/><ellipse cx="20" cy="25" rx="5" ry="3" fill="${accent}"/><circle cx="16" cy="18" r="2.2" fill="#172033"/><circle cx="24" cy="18" r="2.2" fill="#172033"/><circle cx="16" cy="17.5" r=".8" fill="${accent}"/><circle cx="24" cy="17.5" r=".8" fill="${accent}"/><path d="M11 24h-4m22 0h4M12 26h-3m22 0h3" fill="none" stroke="${accent}" stroke-width="1" stroke-linecap="round"/><ellipse cx="20" cy="23" rx="2" ry="1.3" fill="#172033"/>`;
     case "seahorse":
       return `<path d="M24 9c-8 0-11 8-7 14 4 6 0 9-5 7 6 6 17 0 14-8-2-5 4-6 4-10 0-2-2-3-6-3Z" fill="${face}"/><path d="M26 17h6M17 26c4 2 7 1 8-1" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="14" r="1.6" fill="#172033"/>`;
+    case "shark":
+      return `<path d="M8 20c5-8 17-8 24 0-7 8-19 8-24 0Z" fill="${face}"/><path d="M20 6l3 12h-6Z" fill="${face}" stroke="#172033" stroke-width="1.2"/><path d="M8 20 3 14v12Z" fill="${accent}"/><circle cx="27" cy="18" r="1.7" fill="#172033"/><path d="M14 23l2-2 2 2 2-2 2 2 2-2 2 2" fill="none" stroke="${accent}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    case "sloth":
+      return `<circle cx="13" cy="14" r="4" fill="${face}"/><circle cx="27" cy="14" r="4" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><ellipse cx="20" cy="26" rx="5" ry="3.5" fill="${accent}"/><ellipse cx="15" cy="19" rx="3" ry="2.5" fill="${accent}" opacity=".5"/><ellipse cx="25" cy="19" rx="3" ry="2.5" fill="${accent}" opacity=".5"/><path d="M14 19h3m6 0h3" stroke="#172033" stroke-width="2" stroke-linecap="round"/>${nose}<path d="M9 29l-3 3m-1-2 2 1m26-2 3 3m1-2-2 1" fill="none" stroke="${face}" stroke-width="1.5" stroke-linecap="round"/>`;
     case "snail":
       return `<path d="M9 27h22c2 0 4 1 5 3H8c-4 0-5-3-3-5" fill="${face}"/><circle cx="18" cy="21" r="9" fill="${accent}"/><path d="M18 17a5 5 0 1 1-4 8 3 3 0 1 0 4-4" fill="none" stroke="#172033" stroke-width="2" stroke-linecap="round"/><path d="M31 20c2-5 5-5 6-1m-5 4c3-3 5-2 6 1" fill="none" stroke="#172033" stroke-width="1.7" stroke-linecap="round"/>`;
-    case "snake":
-      return `<path d="M13 12c5-5 14-5 19 1-2 2-4 5-4 9 0 7-5 11-10 11S8 29 8 22c0-4 2-8 5-10Z" fill="${face}"/><path d="M18 26c3 2 5 2 8 0" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round"/>${animalEyesMarkup()}`;
-    case "tail":
-      return `<path d="M29 11c8 2 7 12 1 14" fill="none" stroke="${accent}" stroke-width="6" stroke-linecap="round"/>${animalFaceMarkup(profile)}`;
+    case "squirrel":
+      return `<path d="M29 10c8 3 7 13 1 15" fill="none" stroke="${accent}" stroke-width="6" stroke-linecap="round"/><circle cx="13" cy="15" r="5" fill="${face}"/><circle cx="27" cy="15" r="5" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><ellipse cx="20" cy="25" rx="5" ry="3.8" fill="${accent}" opacity=".9"/>${eyes}${nose}`;
+    case "tiger":
+      return `<path d="M10 16l-3-9c3-2 6 0 6 3m17 6 3-9c-3-2-6 0-6 3" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><path d="M16 14v4m8-4v4m-4-2v5" fill="none" stroke="${accent}" stroke-width="2.5" stroke-linecap="round"/><ellipse cx="20" cy="26" rx="5" ry="3.5" fill="${accent}" opacity=".3"/><path d="M13 24l6 4m8-4-6 4" fill="none" stroke="${accent}" stroke-width="1.5" stroke-linecap="round"/>${eyes}${nose}`;
+    case "toucan":
+      return `<circle cx="20" cy="18" r="9" fill="${face}"/><path d="M20 20c3 0 12 1 12 5 0 3-7 5-12 3" fill="${accent}"/><path d="M20 20c3 0 12 0 12 4" fill="none" stroke="#172033" stroke-width="1.2"/><circle cx="16" cy="16" r="2" fill="${accent}"/><circle cx="16" cy="16" r="1" fill="#172033"/>`;
     case "turtle":
       return `<ellipse cx="20" cy="23" rx="12" ry="10" fill="${accent}"/><path d="M10 23h20M20 13v20" stroke="#172033" stroke-width="1.7" opacity=".55"/><circle cx="20" cy="13" r="5" fill="${face}"/><circle cx="18" cy="12" r="1.2" fill="#172033"/><circle cx="22" cy="12" r="1.2" fill="#172033"/>`;
+    case "walrus":
+      return `<circle cx="14" cy="14" r="4" fill="${face}"/><circle cx="26" cy="14" r="4" fill="${face}"/><circle cx="20" cy="22" r="11" fill="${face}"/><ellipse cx="20" cy="25" rx="6" ry="4" fill="${accent}"/><path d="M15 27c0 5-1 7-2 8m12-8c0 5 1 7 2 8" fill="none" stroke="${accent}" stroke-width="3" stroke-linecap="round"/><path d="M12 24h-3m22 0h3M13 26h-2m18 0h2" fill="none" stroke="${accent}" stroke-width="1" stroke-linecap="round"/>${eyes}<ellipse cx="20" cy="24" rx="2.5" ry="1.5" fill="#172033"/>`;
+    case "wombat":
+      return `<circle cx="13" cy="14" r="4" fill="${face}"/><circle cx="27" cy="14" r="4" fill="${face}"/><circle cx="13" cy="14" r="2" fill="${accent}"/><circle cx="27" cy="14" r="2" fill="${accent}"/><ellipse cx="20" cy="23" rx="12" ry="11" fill="${face}"/><ellipse cx="20" cy="25" rx="5" ry="3.5" fill="${accent}"/>${eyes}<ellipse cx="20" cy="24" rx="3" ry="2" fill="#172033"/>`;
+    case "zebra":
+      return `<path d="M12 14c-3-7 0-10 3-5m10 5c3-7 0-10-3-5" fill="${face}" stroke="#172033" stroke-width="1.4" stroke-linecap="round"/><circle cx="20" cy="22" r="11" fill="${face}"/><path d="M14 14v5m4-7v7m4-7v7m4-5v5" fill="none" stroke="${accent}" stroke-width="2.5" stroke-linecap="round"/><ellipse cx="20" cy="27" rx="5" ry="3.5" fill="${accent}" opacity=".3"/>${eyes}${nose}`;
     default:
       return animalFaceMarkup(profile);
   }
