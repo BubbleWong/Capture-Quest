@@ -7,6 +7,9 @@ const closeLeaderboardButton = document.querySelector("#closeLeaderboardButton")
 const gameMenuDialog = document.querySelector("#gameMenuDialog");
 const gameMenuContent = document.querySelector("#gameMenuContent");
 const closeGameMenuButton = document.querySelector("#closeGameMenuButton");
+const playerNameDialog = document.querySelector("#playerNameDialog");
+const playerNameDialogContent = document.querySelector("#playerNameDialogContent");
+const closePlayerNameDialogButton = document.querySelector("#closePlayerNameDialogButton");
 const globalToastStack = document.querySelector("#globalToastStack");
 
 const socket = io();
@@ -88,6 +91,57 @@ const funnyAnimalUsernames = [
   "Muffin Mole",
   "Skater Squirrel"
 ];
+const animalAvatarProfiles = {
+  ant: { label: "Ant", kind: "bug", bg: "#ffe6ef", face: "#e84d77", accent: "#172033" },
+  badger: { label: "Badger", kind: "stripe", bg: "#eef3ff", face: "#ffffff", accent: "#172033" },
+  bear: { label: "Bear", kind: "bear", bg: "#ffe7bf", face: "#9a6b45", accent: "#f4c28a" },
+  beaver: { label: "Beaver", kind: "teeth", bg: "#ffe7bf", face: "#9c623a", accent: "#ffffff" },
+  camel: { label: "Camel", kind: "mammal", bg: "#fff1bf", face: "#d79545", accent: "#8c552e" },
+  capybara: { label: "Capybara", kind: "mammal", bg: "#ffe7bf", face: "#b77d45", accent: "#6b4427" },
+  cheetah: { label: "Cheetah", kind: "spots", bg: "#fff1ad", face: "#f0b74d", accent: "#172033" },
+  cobra: { label: "Cobra", kind: "snake", bg: "#d9f8c4", face: "#52b56b", accent: "#172033" },
+  crab: { label: "Crab", kind: "crab", bg: "#ffe4df", face: "#ff6f61", accent: "#172033" },
+  dolphin: { label: "Dolphin", kind: "fish", bg: "#dcf8ff", face: "#4b9dff", accent: "#ffffff" },
+  donkey: { label: "Donkey", kind: "rabbit", bg: "#eef3ff", face: "#9f8d7a", accent: "#f0d7bc" },
+  duck: { label: "Duck", kind: "bird", bg: "#fff4b8", face: "#ffd84f", accent: "#ff9f1c" },
+  elephant: { label: "Elephant", kind: "elephant", bg: "#e8f0ff", face: "#95a9c8", accent: "#ffffff" },
+  ferret: { label: "Ferret", kind: "stripe", bg: "#fff0cf", face: "#c79658", accent: "#ffffff" },
+  frog: { label: "Frog", kind: "frog", bg: "#ddffd1", face: "#66c85f", accent: "#ffffff" },
+  gecko: { label: "Gecko", kind: "lizard", bg: "#defbd4", face: "#70d36b", accent: "#ffe35e" },
+  goat: { label: "Goat", kind: "horn", bg: "#f2f4ff", face: "#ffffff", accent: "#b98a52" },
+  goose: { label: "Goose", kind: "bird", bg: "#eaf6ff", face: "#ffffff", accent: "#ff9f1c" },
+  hamster: { label: "Hamster", kind: "mammal", bg: "#fff0cf", face: "#d69a58", accent: "#fff1d6" },
+  hippo: { label: "Hippo", kind: "mammal", bg: "#ede6ff", face: "#9c8ccd", accent: "#ded4ff" },
+  jaguar: { label: "Jaguar", kind: "spots", bg: "#fff1ad", face: "#d89432", accent: "#172033" },
+  koala: { label: "Koala", kind: "bear", bg: "#edf2f7", face: "#9aa8b8", accent: "#ffffff" },
+  lion: { label: "Lion", kind: "lion", bg: "#fff0b8", face: "#e69a31", accent: "#b66b23" },
+  llama: { label: "Llama", kind: "rabbit", bg: "#fff3df", face: "#f2d0a7", accent: "#9d6b44" },
+  meerkat: { label: "Meerkat", kind: "stripe", bg: "#fff1bf", face: "#c48a4b", accent: "#6e472b" },
+  mole: { label: "Mole", kind: "mammal", bg: "#eadfd5", face: "#8b6a5a", accent: "#ffb8ca" },
+  monkey: { label: "Monkey", kind: "bear", bg: "#ffe2bf", face: "#9d6239", accent: "#f3bc84" },
+  moose: { label: "Moose", kind: "antler", bg: "#fff0cf", face: "#a66b3f", accent: "#74411f" },
+  narwhal: { label: "Narwhal", kind: "narwhal", bg: "#dcf8ff", face: "#76b9e8", accent: "#ffffff" },
+  otter: { label: "Otter", kind: "mammal", bg: "#e7f8ff", face: "#8f6745", accent: "#f0c28a" },
+  owl: { label: "Owl", kind: "owl", bg: "#efe8ff", face: "#9b75d6", accent: "#ffe35e" },
+  panda: { label: "Panda", kind: "panda", bg: "#f2f6ff", face: "#ffffff", accent: "#172033" },
+  panther: { label: "Panther", kind: "cat", bg: "#dfe7ff", face: "#28324f", accent: "#7ad6ff" },
+  parrot: { label: "Parrot", kind: "bird", bg: "#e2ffe2", face: "#28b86f", accent: "#ff6f61" },
+  penguin: { label: "Penguin", kind: "penguin", bg: "#e9f7ff", face: "#172033", accent: "#ffffff" },
+  rabbit: { label: "Rabbit", kind: "rabbit", bg: "#fff0f8", face: "#ffffff", accent: "#ffb8d6" },
+  rhino: { label: "Rhino", kind: "horn", bg: "#eaf0f4", face: "#8ea2ad", accent: "#ffffff" },
+  seal: { label: "Seal", kind: "mammal", bg: "#e7f8ff", face: "#8eb0c5", accent: "#ffffff" },
+  seahorse: { label: "Seahorse", kind: "seahorse", bg: "#ddfbff", face: "#f0aa54", accent: "#172033" },
+  shark: { label: "Shark", kind: "fish", bg: "#dcf8ff", face: "#6e91ad", accent: "#ffffff" },
+  sloth: { label: "Sloth", kind: "stripe", bg: "#fff2d9", face: "#a77c54", accent: "#f5d2a6" },
+  snail: { label: "Snail", kind: "snail", bg: "#ecffd9", face: "#8fcf5f", accent: "#d6a052" },
+  squirrel: { label: "Squirrel", kind: "tail", bg: "#fff0d8", face: "#c17335", accent: "#f0b978" },
+  tiger: { label: "Tiger", kind: "cat", bg: "#fff0bf", face: "#f08d32", accent: "#172033" },
+  toucan: { label: "Toucan", kind: "bird", bg: "#e2f8ff", face: "#172033", accent: "#ffba31" },
+  turtle: { label: "Turtle", kind: "turtle", bg: "#dfffd2", face: "#65b46a", accent: "#3f8f4e" },
+  walrus: { label: "Walrus", kind: "tusk", bg: "#e7f8ff", face: "#a56b4c", accent: "#ffffff" },
+  wombat: { label: "Wombat", kind: "bear", bg: "#fff0d8", face: "#9b7154", accent: "#e5b790" },
+  zebra: { label: "Zebra", kind: "stripe", bg: "#f4f8ff", face: "#ffffff", accent: "#172033" }
+};
 const cameraDebugEnabled =
   query.get("debugCamera") === "1" || localStorage.getItem("captureQuestDebugCamera") === "1";
 const cameraDebugEvents = [];
@@ -614,6 +668,129 @@ function ensureJoinNamePlaceholder() {
   return state.joinNamePlaceholder;
 }
 
+function hashString(value) {
+  return Array.from(String(value || "")).reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 7);
+}
+
+function animalKeyFromName(username = "") {
+  const words = String(username || "")
+    .toLowerCase()
+    .replace(/[^a-z]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return words.reverse().find((word) => animalAvatarProfiles[word]) || "";
+}
+
+function fallbackAvatarProfile(username = "") {
+  const palettes = [
+    ["#e8f0ff", "#4b7dff", "#ffffff"],
+    ["#e1fff0", "#39b979", "#ffffff"],
+    ["#fff1bf", "#f0a533", "#ffffff"],
+    ["#ffe4df", "#ff6f61", "#ffffff"],
+    ["#efe8ff", "#8d69d8", "#ffffff"]
+  ];
+  const [bg, face, accent] = palettes[hashString(username) % palettes.length];
+  return { label: "Player", kind: "mammal", bg, face, accent };
+}
+
+function animalAvatarProfile(username = "") {
+  const animalKey = animalKeyFromName(username);
+  return animalKey ? animalAvatarProfiles[animalKey] : fallbackAvatarProfile(username);
+}
+
+function animalEyesMarkup() {
+  return `
+    <circle cx="16" cy="19" r="1.7" fill="#172033"/>
+    <circle cx="24" cy="19" r="1.7" fill="#172033"/>
+  `;
+}
+
+function animalFaceMarkup(profile) {
+  const face = escapeHtml(profile.face);
+  const accent = escapeHtml(profile.accent);
+  const extra =
+    profile.kind === "spots"
+      ? `<circle cx="13" cy="18" r="1.7" fill="${accent}"/><circle cx="26" cy="16" r="1.7" fill="${accent}"/><circle cx="24" cy="27" r="1.4" fill="${accent}"/>`
+      : profile.kind === "stripe" || profile.kind === "cat"
+        ? `<path d="M13 15l6 4m8-4-6 4M13 25l5-3m9 3-5-3" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round"/>`
+        : profile.kind === "teeth"
+          ? `<rect x="17" y="25" width="3" height="5" rx=".8" fill="${accent}" stroke="#172033" stroke-width=".8"/><rect x="20" y="25" width="3" height="5" rx=".8" fill="${accent}" stroke="#172033" stroke-width=".8"/>`
+          : profile.kind === "tusk"
+            ? `<path d="M16 25c-2 5-5 5-6 2m14-2c2 5 5 5 6 2" fill="none" stroke="${accent}" stroke-width="3" stroke-linecap="round"/>`
+            : "";
+  return `
+    <circle cx="13" cy="15" r="5" fill="${face}"/>
+    <circle cx="27" cy="15" r="5" fill="${face}"/>
+    <circle cx="20" cy="22" r="11" fill="${face}"/>
+    <ellipse cx="20" cy="25" rx="5" ry="3.8" fill="${accent}" opacity=".9"/>
+    ${animalEyesMarkup()}
+    <path d="M20 23l-2 2h4z" fill="#172033"/>
+    ${extra}
+  `;
+}
+
+function animalAvatarFeatureMarkup(profile) {
+  const face = escapeHtml(profile.face);
+  const accent = escapeHtml(profile.accent);
+  switch (profile.kind) {
+    case "antler":
+      return `<path d="M11 13c-4-5-1-8 2-4m16 4c4-5 1-8-2-4M13 9v7m14-7v7" fill="none" stroke="${accent}" stroke-width="3" stroke-linecap="round"/>${animalFaceMarkup(profile)}`;
+    case "bird":
+      return `<circle cx="20" cy="20" r="11" fill="${face}"/><path d="M20 21l11 4-11 5z" fill="${accent}"/><path d="M13 23c2 5 9 6 13 0" fill="none" stroke="${accent}" stroke-width="3" stroke-linecap="round" opacity=".55"/>${animalEyesMarkup()}`;
+    case "bug":
+      return `<ellipse cx="20" cy="22" rx="10" ry="12" fill="${face}"/><path d="M12 11c-3-3-5-1-5 2m21-2c3-3 5-1 5 2M10 21H6m28 0h-4M12 28H8m24 0h-4" fill="none" stroke="${accent}" stroke-width="2.3" stroke-linecap="round"/><path d="M20 11v22M12 20h16" stroke="${accent}" stroke-width="2" opacity=".5"/>${animalEyesMarkup()}`;
+    case "crab":
+      return `<ellipse cx="20" cy="23" rx="10" ry="8" fill="${face}"/><path d="M11 18l-6-5m24 5 6-5M9 27l-5 3m27-3 5 3" fill="none" stroke="${face}" stroke-width="4" stroke-linecap="round"/><circle cx="6" cy="12" r="3.5" fill="${face}"/><circle cx="34" cy="12" r="3.5" fill="${face}"/>${animalEyesMarkup()}`;
+    case "elephant":
+      return `<circle cx="12" cy="21" r="8" fill="${face}" opacity=".75"/><circle cx="28" cy="21" r="8" fill="${face}" opacity=".75"/>${animalFaceMarkup(profile)}<path d="M20 23c5 7-4 8 0 12" fill="none" stroke="${face}" stroke-width="5" stroke-linecap="round"/>`;
+    case "fish":
+      return `<path d="M8 20c5-8 17-8 24 0-7 8-19 8-24 0Z" fill="${face}"/><path d="M8 20 3 14v12Z" fill="${accent}"/><circle cx="25" cy="18" r="1.7" fill="#172033"/><path d="M20 24c3 2 6 2 9 0" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round"/>`;
+    case "frog":
+      return `<circle cx="14" cy="14" r="5" fill="${face}"/><circle cx="26" cy="14" r="5" fill="${face}"/>${animalFaceMarkup(profile)}<circle cx="14" cy="14" r="1.6" fill="#172033"/><circle cx="26" cy="14" r="1.6" fill="#172033"/><path d="M15 26c3 3 7 3 10 0" fill="none" stroke="#172033" stroke-width="2" stroke-linecap="round"/>`;
+    case "horn":
+      return `<path d="M13 12 10 5l8 6m9 1 3-7-8 6" fill="${accent}" stroke="#172033" stroke-width="1.4" stroke-linejoin="round"/>${animalFaceMarkup(profile)}<path d="M20 13 23 7l3 8" fill="${accent}" stroke="#172033" stroke-width="1.4" stroke-linejoin="round"/>`;
+    case "lion":
+      return `<circle cx="20" cy="20" r="14" fill="${accent}"/><circle cx="20" cy="21" r="10" fill="${face}"/>${animalEyesMarkup()}<path d="M17 25h6l-3 3z" fill="#172033"/>`;
+    case "lizard":
+      return `<ellipse cx="20" cy="21" rx="9" ry="12" fill="${face}"/><path d="M29 16c4 0 5 4 2 6M11 16c-4 0-5 4-2 6M17 28l-5 5m11-5 5 5" fill="none" stroke="${accent}" stroke-width="2.4" stroke-linecap="round"/><circle cx="16" cy="18" r="1.8" fill="#172033"/><circle cx="24" cy="18" r="1.8" fill="#172033"/>`;
+    case "narwhal":
+      return `<path d="M20 6 25 16h-8Z" fill="${accent}" stroke="#172033" stroke-width="1.4"/>${animalAvatarFeatureMarkup({ ...profile, kind: "fish" })}`;
+    case "owl":
+      return `<path d="M10 12c2-3 6-4 10-1 4-3 8-2 10 1v12c0 7-5 11-10 11S10 31 10 24Z" fill="${face}"/><circle cx="16" cy="20" r="5" fill="${accent}"/><circle cx="24" cy="20" r="5" fill="${accent}"/><circle cx="16" cy="20" r="1.7" fill="#172033"/><circle cx="24" cy="20" r="1.7" fill="#172033"/><path d="M20 23l-3 4h6z" fill="#ff9f1c"/>`;
+    case "panda":
+      return `<circle cx="12" cy="12" r="5" fill="${accent}"/><circle cx="28" cy="12" r="5" fill="${accent}"/><circle cx="20" cy="22" r="11" fill="${face}"/><circle cx="16" cy="20" r="4" fill="${accent}"/><circle cx="24" cy="20" r="4" fill="${accent}"/><circle cx="16" cy="20" r="1.3" fill="#ffffff"/><circle cx="24" cy="20" r="1.3" fill="#ffffff"/><path d="M20 24l-3 3h6z" fill="${accent}"/>`;
+    case "penguin":
+      return `<ellipse cx="20" cy="22" rx="11" ry="14" fill="${face}"/><ellipse cx="20" cy="25" rx="7" ry="9" fill="${accent}"/>${animalEyesMarkup()}<path d="M20 21l-4 3h8z" fill="#ff9f1c"/>`;
+    case "rabbit":
+      return `<path d="M14 14C9 5 12 1 16 10m10 4c5-9 2-13-2-4" fill="${face}" stroke="#172033" stroke-width="1.6" stroke-linecap="round"/>${animalFaceMarkup(profile)}<path d="M15 13c-2-4-1-6 1-3m9 3c2-4 1-6-1-3" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round"/>`;
+    case "seahorse":
+      return `<path d="M24 9c-8 0-11 8-7 14 4 6 0 9-5 7 6 6 17 0 14-8-2-5 4-6 4-10 0-2-2-3-6-3Z" fill="${face}"/><path d="M26 17h6M17 26c4 2 7 1 8-1" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="14" r="1.6" fill="#172033"/>`;
+    case "snail":
+      return `<path d="M9 27h22c2 0 4 1 5 3H8c-4 0-5-3-3-5" fill="${face}"/><circle cx="18" cy="21" r="9" fill="${accent}"/><path d="M18 17a5 5 0 1 1-4 8 3 3 0 1 0 4-4" fill="none" stroke="#172033" stroke-width="2" stroke-linecap="round"/><path d="M31 20c2-5 5-5 6-1m-5 4c3-3 5-2 6 1" fill="none" stroke="#172033" stroke-width="1.7" stroke-linecap="round"/>`;
+    case "snake":
+      return `<path d="M13 12c5-5 14-5 19 1-2 2-4 5-4 9 0 7-5 11-10 11S8 29 8 22c0-4 2-8 5-10Z" fill="${face}"/><path d="M18 26c3 2 5 2 8 0" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round"/>${animalEyesMarkup()}`;
+    case "tail":
+      return `<path d="M29 11c8 2 7 12 1 14" fill="none" stroke="${accent}" stroke-width="6" stroke-linecap="round"/>${animalFaceMarkup(profile)}`;
+    case "turtle":
+      return `<ellipse cx="20" cy="23" rx="12" ry="10" fill="${accent}"/><path d="M10 23h20M20 13v20" stroke="#172033" stroke-width="1.7" opacity=".55"/><circle cx="20" cy="13" r="5" fill="${face}"/><circle cx="18" cy="12" r="1.2" fill="#172033"/><circle cx="22" cy="12" r="1.2" fill="#172033"/>`;
+    default:
+      return animalFaceMarkup(profile);
+  }
+}
+
+function animalAvatarMarkup(username, { compact = false } = {}) {
+  const profile = animalAvatarProfile(username);
+  return `
+    <span class="animal-avatar ${compact ? "is-compact" : ""}" title="${escapeHtml(profile.label)} avatar" aria-hidden="true">
+      <svg class="animal-avatar-icon" viewBox="0 0 40 40" focusable="false">
+        <circle cx="20" cy="20" r="19" fill="${escapeHtml(profile.bg)}"/>
+        ${animalAvatarFeatureMarkup(profile)}
+      </svg>
+    </span>
+  `;
+}
+
 function randomNameIconMarkup() {
   return `
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -627,7 +804,7 @@ function randomNameIconMarkup() {
   `;
 }
 
-function randomNameButtonMarkup(targetName) {
+function randomNameButtonMarkup(targetName, { disabled = false } = {}) {
   return `
     <button
       class="name-random-button"
@@ -635,11 +812,16 @@ function randomNameButtonMarkup(targetName) {
       data-random-name-button="${escapeHtml(targetName)}"
       aria-label="Choose random name"
       title="Choose random name"
+      ${disabled ? "disabled" : ""}
     >${randomNameIconMarkup()}</button>
   `;
 }
 
 function currentRandomNameInput() {
+  const dialogInput = playerNameDialog?.open
+    ? playerNameDialog.querySelector("[data-random-name-target]")
+    : null;
+  if (dialogInput && !dialogInput.disabled) return dialogInput;
   if (state.view !== "create" && state.view !== "join" && state.view !== "lobby") return null;
   return document.querySelector("[data-random-name-target]");
 }
@@ -654,6 +836,17 @@ function chooseRandomName(input = currentRandomNameInput()) {
   input.classList.add("is-random-picked");
   window.setTimeout(() => input.classList.remove("is-random-picked"), 320);
   return nextName;
+}
+
+function focusNameInput(input) {
+  if (!input || input.disabled) return;
+  input.focus({ preventScroll: true });
+  const caretPosition = input.value.length;
+  try {
+    input.setSelectionRange(caretPosition, caretPosition);
+  } catch {
+    // Some input types do not support selection ranges.
+  }
 }
 
 function handleNameShake(event) {
@@ -702,8 +895,16 @@ function setupRandomNamePicker(inputName) {
   const button = document.querySelector(`[data-random-name-button='${inputName}']`);
   if (!input || !button) return;
 
+  const keepInputFocused = (event) => {
+    if (input.disabled) return;
+    event.preventDefault();
+    focusNameInput(input);
+  };
+  button.addEventListener("pointerdown", keepInputFocused);
+  button.addEventListener("mousedown", keepInputFocused);
   button.addEventListener("click", () => {
     chooseRandomName(input);
+    focusNameInput(input);
     startNameShakeListener({ requestPermission: true });
   });
   startNameShakeListener({ requestPermission: false });
@@ -930,16 +1131,20 @@ function showMessage(message, status = "info") {
   setNotice(message, status);
 }
 
-function activeGameCode() {
-  return normalizeGameIdInput(state.game?.id || state.urlGameId || "");
-}
-
 function renderConnectionPill() {
-  const connectionText = state.online ? "online" : "offline";
-  const gameCode = activeGameCode();
-  connectionPill.textContent = gameCode ? `${connectionText} - ${gameCode}` : connectionText;
+  const playerName = state.game?.me?.username || "";
+  const connectionText = state.online ? playerName || "online" : "offline";
+  connectionPill.innerHTML =
+    state.online && playerName
+      ? `${animalAvatarMarkup(playerName, { compact: true })}<span class="connection-name">${escapeHtml(playerName)}</span>`
+      : escapeHtml(connectionText);
+  connectionPill.title = playerName ? "Change name" : connectionText;
+  connectionPill.setAttribute(
+    "aria-label",
+    playerName ? `Change player name, current name ${playerName}` : connectionText
+  );
   connectionPill.classList.toggle("is-online", state.online);
-  connectionPill.classList.toggle("has-game-code", Boolean(gameCode));
+  connectionPill.classList.toggle("has-player-name", Boolean(playerName));
 }
 
 function updateConnection(online) {
@@ -1079,8 +1284,10 @@ async function updatePlayerName(formData) {
   });
   if (response.ok) {
     setNotice("Name updated.");
+    return true;
   } else {
     setNotice(response.error);
+    return false;
   }
 }
 
@@ -2097,7 +2304,7 @@ function playerRows(players) {
         .join(" · ");
       return `
         <li class="player-row">
-          <span class="player-avatar">${index + 1}</span>
+          <span class="player-avatar">${animalAvatarMarkup(player.username)}</span>
           <span class="player-meta">
             <span class="player-name">${escapeHtml(player.username)}</span>
             <span class="player-state">${escapeHtml(stateText)}</span>
@@ -2179,6 +2386,7 @@ function finalTeamScoreRows(teams = []) {
         .map(
           (contributor) => `
             <li class="team-contributor-row">
+              ${animalAvatarMarkup(contributor.username, { compact: true })}
               <span class="team-contributor-name">${escapeHtml(contributor.username)}</span>
               <span class="team-contributor-detail">${escapeHtml(contributionSummary(contributor))}</span>
               <span class="team-contributor-score">${escapeHtml(signedScore(contributor.score))}</span>
@@ -2209,8 +2417,9 @@ function playerScoreRows(players) {
     .sort((a, b) => b.score - a.score || a.username.localeCompare(b.username))
     .map(
       (player, index) => `
-        <li class="score-row">
+        <li class="score-row player-score-row">
           <span class="score-rank">${index + 1}</span>
+          ${animalAvatarMarkup(player.username)}
           <span class="score-name">${escapeHtml(player.username)}</span>
           <span class="score-value">${player.score}</span>
         </li>
@@ -2327,6 +2536,7 @@ function gameScorePills(game) {
     .map(
       (player) => `
         <li class="game-score-pill ${player.id === state.playerId ? "is-me" : ""}">
+          ${animalAvatarMarkup(player.username, { compact: true })}
           <span class="game-score-name">${escapeHtml(player.username)}</span>
           <span class="game-score-value">${player.score}</span>
         </li>
@@ -2514,39 +2724,43 @@ function renderLobby() {
   const isOwner = me?.id === game.ownerPlayerId;
   const cameraReady = Boolean(cameraState.stream);
   const cameraMessage = cameraState.error || (cameraReady ? "Camera ready" : "Camera permission needed");
-  const lobbyNamePlaceholder = escapeHtml(ensureJoinNamePlaceholder());
   const gameOptionsDisabled = game.status !== "lobby";
   app.innerHTML = `
     <section class="screen lobby-layout">
       <div class="panel-title">
+        <div class="lobby-heading">
+          <div>
+            <h1>Lobby</h1>
+            <p>Share this card with players nearby.</p>
+          </div>
+          <div class="lobby-status-row">
+            ${game.status === "loading" ? `<span class="status-chip">loading objects</span>` : ""}
+            ${game.teamUpEnabled ? `<span class="status-chip team-mode-chip">Team-up on</span>` : ""}
+          </div>
+        </div>
         <section class="join-reference-card" aria-labelledby="joinReferenceTitle">
           <div class="join-reference-head">
-            <span class="status-chip">${game.status === "loading" ? "loading objects" : "lobby"}</span>
-            ${game.teamUpEnabled ? `<span class="status-chip team-mode-chip">Team-up on</span>` : ""}
-            <h1 id="joinReferenceTitle">Join this game</h1>
+            <h2 id="joinReferenceTitle">Join this game</h2>
           </div>
-          <div class="join-reference-grid">
-            <div class="join-reference-section">
-              <span class="reference-label">Game ID</span>
-              <div class="game-code">${escapeHtml(game.id)}</div>
-            </div>
-            <div class="join-reference-section">
-              <span class="reference-label">Game URL</span>
-              <div class="copy-row">
-                <input class="text-input" id="gameUrlInput" value="${escapeHtml(state.gameUrl)}" readonly>
-                <button class="secondary-button" id="copyUrlButton" type="button">Copy URL</button>
-              </div>
-            </div>
+          <div class="join-reference-body">
             ${
               state.qrCode
                 ? `
-                  <div class="join-reference-section">
-                    <span class="reference-label">QR code</span>
-                    <div class="qr-wrap"><img src="${state.qrCode}" alt="QR code for game ${escapeHtml(game.id)}"></div>
+                  <div class="join-reference-qr">
+                    <div class="qr-wrap join-qr-wrap"><img src="${state.qrCode}" alt="QR code for game ${escapeHtml(game.id)}"></div>
                   </div>
                 `
                 : ""
             }
+            <div class="join-reference-details">
+              <div class="join-reference-section">
+                <span class="reference-label">Game ID</span>
+                <div class="game-code">${escapeHtml(game.id)}</div>
+              </div>
+              <div class="join-reference-section join-share-section">
+                <button class="secondary-button copy-url-button" id="copyUrlButton" type="button" aria-label="Copy URL to share" title="Copy URL to share">Copy URL to share</button>
+              </div>
+            </div>
           </div>
         </section>
       </div>
@@ -2556,18 +2770,6 @@ function renderLobby() {
         <details class="lobby-options">
           <summary>Game options</summary>
           <div class="lobby-options-stack">
-            <form class="lobby-option-card stack" id="playerNameForm">
-              <h3>Your name</h3>
-              <label class="field">
-                <span>Player name</span>
-                <div class="name-picker">
-                  <input class="text-input" name="playerName" data-random-name-target="playerName" autocomplete="nickname" maxlength="24" placeholder="${lobbyNamePlaceholder}" value="${escapeHtml(me?.username || "")}" ${gameOptionsDisabled ? "disabled" : ""}>
-                  ${randomNameButtonMarkup("playerName")}
-                </div>
-                <small class="field-note">Leave blank or tap the dice for a random name. Saving a name sets you to not ready.</small>
-              </label>
-              <button class="secondary-button" type="submit" ${gameOptionsDisabled ? "disabled" : ""}>Save name</button>
-            </form>
             ${
               isOwner
                 ? `
@@ -2621,11 +2823,6 @@ function renderLobby() {
     </section>
   `;
 
-  document.querySelector("#playerNameForm").addEventListener("submit", (event) => {
-    event.preventDefault();
-    updatePlayerName(new FormData(event.currentTarget));
-  });
-  setupRandomNamePicker("playerName");
   document.querySelector("#gameOptionsForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
     updateGameOptions(new FormData(event.currentTarget));
@@ -2637,8 +2834,7 @@ function renderLobby() {
       await navigator.clipboard?.writeText(state.gameUrl);
       showMessage("Game URL copied.", "success");
     } catch {
-      document.querySelector("#gameUrlInput")?.select();
-      showMessage("Copy failed. Select the URL and copy it manually.", "warning");
+      showMessage("Copy failed. Use the QR code or game ID to join.", "warning");
     }
   });
   document.querySelector("#startButton")?.addEventListener("click", startGame);
@@ -2905,6 +3101,51 @@ async function voteSkipRound() {
   }
 }
 
+function closePlayerNameDialog() {
+  playerNameDialog.close();
+}
+
+function openPlayerNameDialog() {
+  if (!state.online) {
+    showMessage("You are offline.", "warning");
+    return;
+  }
+  if (!state.game?.me) {
+    showMessage("Join or create a game to change your name.", "warning");
+    return;
+  }
+
+  const canEditName = state.game.status === "lobby";
+  const placeholder = escapeHtml(ensureJoinNamePlaceholder());
+  const currentName = escapeHtml(state.game.me.username || "");
+  playerNameDialogContent.innerHTML = `
+    <form class="game-menu-stack" id="playerNameDialogForm">
+      <label class="field">
+        <span>Player name</span>
+        <div class="name-picker">
+          <input class="text-input" name="playerName" data-random-name-target="playerName" autocomplete="nickname" maxlength="24" placeholder="${placeholder}" value="${currentName}" ${canEditName ? "autofocus" : "disabled"}>
+          ${randomNameButtonMarkup("playerName", { disabled: !canEditName })}
+        </div>
+        <small class="field-note">${
+          canEditName
+            ? "Leave blank or tap the dice for a random name. Saving a name sets you to not ready."
+            : "Names can only be changed in the lobby."
+        }</small>
+      </label>
+      <button class="secondary-button" type="submit" ${canEditName ? "" : "disabled"}>Save name</button>
+    </form>
+  `;
+
+  playerNameDialog.showModal();
+  setupRandomNamePicker("playerName");
+  const input = playerNameDialog.querySelector("[name='playerName']");
+  if (canEditName) input?.focus();
+  playerNameDialog.querySelector("#playerNameDialogForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (await updatePlayerName(new FormData(event.currentTarget))) closePlayerNameDialog();
+  });
+}
+
 async function openLeaderboard() {
   leaderboardDialog.showModal();
   if (!state.game) {
@@ -2913,9 +3154,15 @@ async function openLeaderboard() {
   }
 
   const rows = leaderboardRows(state.game);
+  const gameIdMarkup = `
+    <div class="leaderboard-game-id">
+      <span>Game ID</span>
+      <strong>${escapeHtml(state.game.id)}</strong>
+    </div>
+  `;
   leaderboardContent.innerHTML = rows
-    ? `<ol class="score-list ${state.game.teamUpEnabled ? "team-leaderboard-list" : ""}">${rows}</ol>`
-    : `<p class="empty-state">No players in this group yet.</p>`;
+    ? `${gameIdMarkup}<ol class="score-list ${state.game.teamUpEnabled ? "team-leaderboard-list" : ""}">${rows}</ol>`
+    : `${gameIdMarkup}<p class="empty-state">No players in this group yet.</p>`;
 }
 
 socket.on("connect", () => {
@@ -3013,6 +3260,9 @@ leaderboardButton.addEventListener("click", openLeaderboard);
 closeLeaderboardButton.addEventListener("click", () => leaderboardDialog.close());
 closeGameMenuButton.addEventListener("click", closeGameMenu);
 gameMenuDialog.addEventListener("cancel", closeGameMenu);
+connectionPill.addEventListener("click", openPlayerNameDialog);
+closePlayerNameDialogButton.addEventListener("click", closePlayerNameDialog);
+playerNameDialog.addEventListener("cancel", closePlayerNameDialog);
 
 document.addEventListener(
   "pointerdown",

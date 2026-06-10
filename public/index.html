@@ -21,7 +21,7 @@
         </a>
         <div class="top-actions">
           <button class="icon-button" id="leaderboardButton" type="button" aria-label="Open leaderboard" title="Leaderboard">★</button>
-          <span class="connection-pill" id="connectionPill">connecting</span>
+          <button class="connection-pill" id="connectionPill" type="button">connecting</button>
         </div>
       </header>
 
@@ -43,6 +43,14 @@
         <button class="icon-button" id="closeGameMenuButton" type="button" aria-label="Close game options" title="Close">×</button>
       </div>
       <div id="gameMenuContent" class="game-menu-content"></div>
+    </dialog>
+
+    <dialog id="playerNameDialog" class="leaderboard-dialog game-menu-dialog">
+      <div class="dialog-head">
+        <h2>Player Name</h2>
+        <button class="icon-button" id="closePlayerNameDialogButton" type="button" aria-label="Close player name" title="Close">×</button>
+      </div>
+      <div id="playerNameDialogContent" class="game-menu-content"></div>
     </dialog>
 
     <template id="scoreRowTemplate">
