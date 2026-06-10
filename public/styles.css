@@ -167,6 +167,85 @@ button:disabled {
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
 }
 
+.avatar-review-screen {
+  display: grid;
+  gap: 18px;
+  padding: clamp(18px, 4vw, 30px);
+}
+
+.avatar-review-head {
+  align-items: end;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.avatar-review-head h1 {
+  font-size: clamp(2.2rem, 6vw, 4.5rem);
+  line-height: 0.95;
+  margin: 0;
+}
+
+.avatar-review-head p {
+  color: var(--muted);
+  font-weight: 850;
+  margin: 8px 0 0;
+}
+
+.avatar-review-back {
+  flex: 0 0 auto;
+}
+
+.avatar-review-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.avatar-review-card {
+  align-items: center;
+  background: #f8fbff;
+  border: 2px solid rgba(23, 32, 51, 0.18);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 86px;
+  padding: 10px;
+}
+
+.avatar-review-card .animal-avatar {
+  height: 62px;
+  width: 62px;
+}
+
+.avatar-review-meta {
+  min-width: 0;
+}
+
+.avatar-review-name,
+.avatar-review-animal {
+  display: block;
+}
+
+.avatar-review-name {
+  font-size: 1rem;
+  font-weight: 1000;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.avatar-review-animal {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
 .hero-side {
   align-content: center;
   background:
@@ -1773,6 +1852,19 @@ body.is-game-active .main-stage {
 @media (max-width: 560px) {
   .app-shell {
     padding: 12px;
+  }
+
+  .avatar-review-head {
+    align-items: start;
+    display: grid;
+  }
+
+  .avatar-review-back {
+    width: 100%;
+  }
+
+  .avatar-review-grid {
+    grid-template-columns: 1fr;
   }
 
   .top-bar {

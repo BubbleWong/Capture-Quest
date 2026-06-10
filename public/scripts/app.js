@@ -15,6 +15,7 @@ const globalToastStack = document.querySelector("#globalToastStack");
 const socket = io();
 const query = new URLSearchParams(window.location.search);
 const initialGameId = query.get("game")?.toUpperCase() || "";
+const isAvatarReview = query.get("avatars") === "1";
 const assetVersion = window.__CAPTURE_QUEST_ASSET_VERSION__ || "dev";
 const sessionKey = "captureQuestSession";
 const usernameKey = "captureQuestLastUsername";
@@ -148,7 +149,7 @@ const cameraDebugEvents = [];
 const maxVisibleNotifications = 3;
 
 const state = {
-  view: initialGameId ? "join" : "home",
+  view: isAvatarReview ? "avatars" : initialGameId ? "join" : "home",
   game: null,
   gameUrl: "",
   qrCode: "",
@@ -2545,6 +2546,36 @@ function gameScorePills(game) {
     .join("");
 }
 
+function renderAvatarReview() {
+  const avatarCards = funnyAnimalUsernames
+    .map((username) => {
+      const profile = animalAvatarProfile(username);
+      return `
+        <li class="avatar-review-card">
+          <div class="avatar-review-icon">${animalAvatarMarkup(username)}</div>
+          <div class="avatar-review-meta">
+            <span class="avatar-review-name">${escapeHtml(username)}</span>
+            <span class="avatar-review-animal">${escapeHtml(profile.label)}</span>
+          </div>
+        </li>
+      `;
+    })
+    .join("");
+
+  app.innerHTML = `
+    <section class="screen avatar-review-screen">
+      <div class="avatar-review-head">
+        <div>
+          <h1>Animal Avatars</h1>
+          <p>${funnyAnimalUsernames.length} preset player names using the same avatar renderer as the game.</p>
+        </div>
+        <a class="secondary-button avatar-review-back" href="/">Back to game</a>
+      </div>
+      <ul class="avatar-review-grid">${avatarCards}</ul>
+    </section>
+  `;
+}
+
 function renderHome() {
   app.innerHTML = `
     <section class="screen screen-grid">
@@ -3003,6 +3034,7 @@ function render() {
   renderConnectionPill();
   document.body.classList.toggle("is-game-active", state.view === "game");
   if (state.view === "home") renderHome();
+  if (state.view === "avatars") renderAvatarReview();
   if (state.view === "create") renderCreate();
   if (state.view === "join") renderJoin();
   if (state.view === "lobby") renderLobby();
@@ -3167,7 +3199,7 @@ async function openLeaderboard() {
 
 socket.on("connect", () => {
   updateConnection(true);
-  rejoinPreviousGame();
+  if (!isAvatarReview) rejoinPreviousGame();
 });
 
 socket.on("disconnect", () => {
