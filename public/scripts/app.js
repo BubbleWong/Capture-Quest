@@ -736,11 +736,15 @@ function animalAvatarFeatureMarkup(profile) {
   const a = escapeHtml(profile.accent);
   const d = "#172033";
   const w = "#ffffff";
-  const eL = `<circle cx="15" cy="19" r="2.5" fill="${d}"/><circle cx="25" cy="19" r="2.5" fill="${d}"/><circle cx="16" cy="18" r="1" fill="${w}"/><circle cx="26" cy="18" r="1" fill="${w}"/>`;
-  const eW = `<circle cx="12" cy="19" r="2.5" fill="${d}"/><circle cx="28" cy="19" r="2.5" fill="${d}"/><circle cx="13" cy="18" r="1" fill="${w}"/><circle cx="29" cy="18" r="1" fill="${w}"/>`;
-  const eS = `<circle cx="15" cy="19" r="1.5" fill="${d}"/><circle cx="25" cy="19" r="1.5" fill="${d}"/><circle cx="15.5" cy="18.5" r="0.5" fill="${w}"/><circle cx="25.5" cy="18.5" r="0.5" fill="${w}"/>`;
-  const nO = `<ellipse cx="20" cy="25" rx="2.5" ry="1.5" fill="${d}"/>`;
-  const nT = `<path d="M18 24 L22 24 L20 27 Z" fill="${d}"/>`;
+  const p = "#ff99cc";
+  const b = `opacity="0.5" fill="${p}"`;
+  
+  const eL = `<circle cx="15" cy="20" r="3.5" fill="${d}"/><circle cx="25" cy="20" r="3.5" fill="${d}"/><circle cx="14" cy="19" r="1.5" fill="${w}"/><circle cx="24" cy="19" r="1.5" fill="${w}"/><circle cx="16" cy="21.5" r="0.7" fill="${w}"/><circle cx="26" cy="21.5" r="0.7" fill="${w}"/><ellipse cx="11" cy="23" rx="3" ry="1.5" ${b}/><ellipse cx="29" cy="23" rx="3" ry="1.5" ${b}/>`;
+  const eW = `<circle cx="12" cy="20" r="3.5" fill="${d}"/><circle cx="28" cy="20" r="3.5" fill="${d}"/><circle cx="11" cy="19" r="1.5" fill="${w}"/><circle cx="27" cy="19" r="1.5" fill="${w}"/><circle cx="13" cy="21.5" r="0.7" fill="${w}"/><circle cx="29" cy="21.5" r="0.7" fill="${w}"/><ellipse cx="8" cy="23" rx="3" ry="1.5" ${b}/><ellipse cx="32" cy="23" rx="3" ry="1.5" ${b}/>`;
+  const eS = `<circle cx="15" cy="20" r="2.5" fill="${d}"/><circle cx="25" cy="20" r="2.5" fill="${d}"/><circle cx="14" cy="19" r="1" fill="${w}"/><circle cx="24" cy="19" r="1" fill="${w}"/><circle cx="16" cy="21" r="0.5" fill="${w}"/><circle cx="26" cy="21" r="0.5" fill="${w}"/><ellipse cx="11" cy="22" rx="2" ry="1.5" ${b}/><ellipse cx="29" cy="22" rx="2" ry="1.5" ${b}/>`;
+
+  const nO = `<ellipse cx="20" cy="25" rx="1.5" ry="1" fill="${d}"/><path d="M18 27 Q20 29 22 27" fill="none" stroke="${d}" stroke-width="1.5" stroke-linecap="round"/>`;
+  const nT = `<path d="M19 24 L21 24 L20 26 Z" fill="${d}"/><path d="M17 27 Q20 29 23 27" fill="none" stroke="${d}" stroke-width="1.5" stroke-linecap="round"/>`;
 
   switch (profile.kind) {
     case "ant":
@@ -748,13 +752,13 @@ function animalAvatarFeatureMarkup(profile) {
     case "badger":
       return `<path d="M8 22 L20 10 L32 22 L28 34 L12 34 Z" fill="${f}"/><path d="M16 10 L20 28 L24 10 Z" fill="${w}"/><path d="M10 22 L16 10 L18 22 Z M30 22 L24 10 L22 22 Z" fill="${a}"/>${nT}${eW}`;
     case "bear":
-      return `<circle cx="11" cy="13" r="6" fill="${a}"/><circle cx="29" cy="13" r="6" fill="${a}"/><circle cx="11" cy="13" r="3" fill="${f}"/><circle cx="29" cy="13" r="3" fill="${f}"/><rect x="9" y="14" width="22" height="20" rx="10" fill="${f}"/><ellipse cx="20" cy="25" rx="6" ry="4.5" fill="${a}"/>${nO}${eL}`;
+      return `<circle cx="11" cy="13" r="6" fill="${a}"/><circle cx="29" cy="13" r="6" fill="${a}"/><circle cx="11" cy="13" r="3" fill="${f}"/><circle cx="29" cy="13" r="3" fill="${f}"/><rect x="9" y="14" width="22" height="20" rx="10" fill="${f}"/><ellipse cx="20" cy="26" rx="6" ry="4.5" fill="${a}"/>${nO}${eL}`;
     case "beaver":
-      return `<circle cx="12" cy="15" r="3.5" fill="${a}"/><circle cx="28" cy="15" r="3.5" fill="${a}"/><rect x="10" y="15" width="20" height="18" rx="8" fill="${f}"/><ellipse cx="20" cy="25" rx="7" ry="5" fill="${a}"/><rect x="17" y="28" width="2.5" height="4" rx="1" fill="${w}"/><rect x="20.5" y="28" width="2.5" height="4" rx="1" fill="${w}"/>${nO}${eL}`;
+      return `<circle cx="12" cy="15" r="3.5" fill="${a}"/><circle cx="28" cy="15" r="3.5" fill="${a}"/><rect x="10" y="15" width="20" height="18" rx="8" fill="${f}"/><ellipse cx="20" cy="26" rx="7" ry="5" fill="${a}"/><rect x="17" y="29" width="2.5" height="4" rx="1" fill="${w}"/><rect x="20.5" y="29" width="2.5" height="4" rx="1" fill="${w}"/>${nO}${eL}`;
     case "camel":
-      return `<path d="M16 12 Q20 5 24 12 Z" fill="${f}"/><ellipse cx="12" cy="15" rx="2" ry="3" fill="${a}"/><ellipse cx="28" cy="15" rx="2" ry="3" fill="${a}"/><rect x="11" y="14" width="18" height="20" rx="9" fill="${f}"/><ellipse cx="20" cy="26" rx="6" ry="5" fill="${a}"/>${eW}`;
+      return `<path d="M16 12 Q20 5 24 12 Z" fill="${f}"/><ellipse cx="12" cy="15" rx="2" ry="3" fill="${a}"/><ellipse cx="28" cy="15" rx="2" ry="3" fill="${a}"/><rect x="11" y="14" width="18" height="20" rx="9" fill="${f}"/><ellipse cx="20" cy="27" rx="6" ry="5" fill="${a}"/>${eW}`;
     case "capybara":
-      return `<circle cx="12" cy="15" r="2.5" fill="${a}"/><circle cx="28" cy="15" r="2.5" fill="${a}"/><rect x="8" y="14" width="24" height="18" rx="8" fill="${f}"/><ellipse cx="20" cy="25" rx="7" ry="5" fill="${a}"/>${nO}${eW}`;
+      return `<circle cx="12" cy="15" r="2.5" fill="${a}"/><circle cx="28" cy="15" r="2.5" fill="${a}"/><rect x="8" y="14" width="24" height="18" rx="8" fill="${f}"/><ellipse cx="20" cy="26" rx="7" ry="5" fill="${a}"/>${nO}${eW}`;
     case "cheetah":
       return `<circle cx="13" cy="13" r="4.5" fill="${f}"/><circle cx="27" cy="13" r="4.5" fill="${f}"/><circle cx="20" cy="22" r="12" fill="${f}"/><path d="M15 19 Q12 26 16 30 M25 19 Q28 26 24 30" fill="none" stroke="${a}" stroke-width="2" stroke-linecap="round"/>${nT}${eW}`;
     case "cobra":
@@ -762,11 +766,11 @@ function animalAvatarFeatureMarkup(profile) {
     case "crab":
       return `<ellipse cx="20" cy="24" rx="12" ry="8" fill="${f}"/><path d="M12 18 Q8 10 5 15 M28 18 Q32 10 35 15 M10 26 L4 30 M30 26 L36 30" fill="none" stroke="${f}" stroke-width="3" stroke-linecap="round"/><circle cx="14" cy="14" r="2.5" fill="${f}"/><circle cx="26" cy="14" r="2.5" fill="${f}"/>${eW}`;
     case "dolphin":
-      return `<path d="M5 22 Q15 5 28 15 Q35 20 35 25 Q20 35 5 22 Z" fill="${f}"/><path d="M20 12 Q22 5 25 10 Z" fill="${f}"/><ellipse cx="14" cy="20" rx="2" ry="2" fill="${d}"/><circle cx="14.5" cy="19.5" r="0.6" fill="${w}"/>`;
+      return `<path d="M5 22 Q15 5 28 15 Q35 20 35 25 Q20 35 5 22 Z" fill="${f}"/><path d="M20 12 Q22 5 25 10 Z" fill="${f}"/><ellipse cx="14" cy="20" rx="2.5" ry="2.5" fill="${d}"/><circle cx="14.5" cy="19" r="0.8" fill="${w}"/>`;
     case "donkey":
-      return `<path d="M10 16 L6 4 L14 12 M30 16 L34 4 L26 12" fill="${f}" stroke="${a}" stroke-width="1.5"/><rect x="12" y="14" width="16" height="20" rx="8" fill="${f}"/><ellipse cx="20" cy="26" rx="6" ry="5" fill="${a}"/>${nO}${eW}`;
+      return `<path d="M10 16 L6 4 L14 12 M30 16 L34 4 L26 12" fill="${f}" stroke="${a}" stroke-width="1.5"/><rect x="12" y="14" width="16" height="20" rx="8" fill="${f}"/><ellipse cx="20" cy="27" rx="6" ry="5" fill="${a}"/>${nO}${eW}`;
     case "duck":
-      return `<circle cx="20" cy="20" r="11" fill="${f}"/><path d="M13 22 Q20 28 27 22 Q32 25 20 30 Q8 25 13 22 Z" fill="${a}"/>${eL}`;
+      return `<circle cx="20" cy="20" r="11" fill="${f}"/><path d="M13 23 Q20 29 27 23 Q32 26 20 31 Q8 26 13 23 Z" fill="${a}"/>${eL}`;
     case "elephant":
       return `<path d="M14 16 Q4 10 4 24 Q4 32 14 26 M26 16 Q36 10 36 24 Q36 32 26 26" fill="${f}" opacity="0.8"/><circle cx="20" cy="20" r="11" fill="${f}"/><path d="M17 26 Q17 36 23 34 Q24 30 21 28 L23 26" fill="${a}" opacity="0.9"/>${eW}`;
     case "ferret":
@@ -778,19 +782,19 @@ function animalAvatarFeatureMarkup(profile) {
     case "goat":
       return `<path d="M13 14 Q10 5 15 5 M27 14 Q30 5 25 5" fill="none" stroke="${a}" stroke-width="2" stroke-linecap="round"/><rect x="12" y="14" width="16" height="20" rx="8" fill="${f}"/><path d="M18 33 L22 33 L20 38 Z" fill="${a}"/>${nO}${eW}`;
     case "goose":
-      return `<circle cx="20" cy="18" r="10" fill="${f}"/><path d="M16 22 L24 22 L20 30 Z" fill="${a}"/>${eL}`;
+      return `<circle cx="20" cy="18" r="10" fill="${f}"/><path d="M16 23 L24 23 L20 31 Z" fill="${a}"/>${eL}`;
     case "hamster":
-      return `<circle cx="14" cy="14" r="3.5" fill="${f}"/><circle cx="26" cy="14" r="3.5" fill="${f}"/><rect x="6" y="14" width="28" height="20" rx="10" fill="${f}"/><ellipse cx="20" cy="25" rx="5" ry="4" fill="${w}" opacity="0.5"/>${nT}${eW}`;
+      return `<circle cx="14" cy="14" r="3.5" fill="${f}"/><circle cx="26" cy="14" r="3.5" fill="${f}"/><rect x="6" y="14" width="28" height="20" rx="10" fill="${f}"/><ellipse cx="20" cy="26" rx="5" ry="4" fill="${w}" opacity="0.5"/>${nT}${eW}`;
     case "hippo":
-      return `<circle cx="14" cy="12" r="3" fill="${f}"/><circle cx="26" cy="12" r="3" fill="${f}"/><rect x="10" y="14" width="20" height="14" rx="7" fill="${f}"/><rect x="6" y="22" width="28" height="14" rx="7" fill="${a}"/>${nO}${eW}`;
+      return `<circle cx="14" cy="12" r="3" fill="${f}"/><circle cx="26" cy="12" r="3" fill="${f}"/><rect x="10" y="14" width="20" height="14" rx="7" fill="${f}"/><rect x="6" y="23" width="28" height="13" rx="6.5" fill="${a}"/>${nO}${eW}`;
     case "jaguar":
       return `<circle cx="12" cy="12" r="4.5" fill="${f}"/><circle cx="28" cy="12" r="4.5" fill="${f}"/><circle cx="20" cy="22" r="12" fill="${f}"/><circle cx="14" cy="28" r="2" fill="none" stroke="${a}" stroke-width="1.5"/><circle cx="26" cy="28" r="2" fill="none" stroke="${a}" stroke-width="1.5"/><circle cx="20" cy="14" r="2.5" fill="none" stroke="${a}" stroke-width="1.5"/>${nT}${eW}`;
     case "koala":
-      return `<circle cx="8" cy="16" r="8" fill="${f}"/><circle cx="32" cy="16" r="8" fill="${f}"/><circle cx="8" cy="16" r="4" fill="${w}"/><circle cx="32" cy="16" r="4" fill="${w}"/><rect x="10" y="14" width="20" height="20" rx="10" fill="${f}"/><rect x="16" y="22" width="8" height="6" rx="3" fill="${d}"/>${eW}`;
+      return `<circle cx="8" cy="16" r="8" fill="${f}"/><circle cx="32" cy="16" r="8" fill="${f}"/><circle cx="8" cy="16" r="4" fill="${w}"/><circle cx="32" cy="16" r="4" fill="${w}"/><rect x="10" y="14" width="20" height="20" rx="10" fill="${f}"/><rect x="16" y="23" width="8" height="5" rx="2.5" fill="${d}"/>${eW}`;
     case "lion":
       return `<circle cx="20" cy="20" r="15" fill="${a}"/><path d="M20 5 L24 10 L28 6 M20 35 L16 30 L12 34" fill="none" stroke="${a}" stroke-width="2"/><circle cx="20" cy="22" r="10" fill="${f}"/>${nT}${eS}`;
     case "llama":
-      return `<path d="M13 16 Q10 4 16 8 M27 16 Q30 4 24 8" fill="${f}" stroke="${a}" stroke-width="1.5"/><rect x="12" y="15" width="16" height="20" rx="8" fill="${f}"/><ellipse cx="20" cy="26" rx="5" ry="4" fill="${w}" opacity="0.6"/>${nT}${eW}`;
+      return `<path d="M13 16 Q10 4 16 8 M27 16 Q30 4 24 8" fill="${f}" stroke="${a}" stroke-width="1.5"/><rect x="12" y="15" width="16" height="20" rx="8" fill="${f}"/><ellipse cx="20" cy="27" rx="5" ry="4" fill="${w}" opacity="0.6"/>${nT}${eW}`;
     case "meerkat":
       return `<ellipse cx="20" cy="22" rx="9" ry="14" fill="${f}"/><circle cx="14" cy="14" r="3" fill="${f}"/><circle cx="26" cy="14" r="3" fill="${f}"/><ellipse cx="15" cy="19" rx="3" ry="2" fill="${d}" opacity="0.2"/><ellipse cx="25" cy="19" rx="3" ry="2" fill="${d}" opacity="0.2"/>${nT}${eW}`;
     case "mole":
@@ -800,25 +804,25 @@ function animalAvatarFeatureMarkup(profile) {
     case "moose":
       return `<path d="M10 14 Q5 10 8 5 M30 14 Q35 10 32 5 M12 12 Q8 6 14 4 M28 12 Q32 6 26 4" fill="none" stroke="${a}" stroke-width="2.5" stroke-linecap="round"/><rect x="12" y="14" width="16" height="22" rx="8" fill="${f}"/><ellipse cx="20" cy="28" rx="6" ry="4" fill="${a}" opacity="0.8"/>${nO}${eW}`;
     case "narwhal":
-      return `<path d="M20 5 L22 15 L18 15 Z" fill="${a}"/><path d="M5 22 Q15 5 28 15 Q35 20 35 25 Q20 35 5 22 Z" fill="${f}"/><ellipse cx="16" cy="20" rx="2" ry="2" fill="${d}"/><circle cx="16.5" cy="19.5" r="0.6" fill="${w}"/>`;
+      return `<path d="M20 5 L22 15 L18 15 Z" fill="${a}"/><path d="M5 22 Q15 5 28 15 Q35 20 35 25 Q20 35 5 22 Z" fill="${f}"/><ellipse cx="16" cy="20" rx="2.5" ry="2.5" fill="${d}"/><circle cx="16.5" cy="19" r="0.8" fill="${w}"/>`;
     case "otter":
-      return `<circle cx="13" cy="15" r="3.5" fill="${f}"/><circle cx="27" cy="15" r="3.5" fill="${f}"/><rect x="9" y="15" width="22" height="18" rx="9" fill="${f}"/><ellipse cx="20" cy="25" rx="6" ry="4" fill="${a}" opacity="0.8"/><path d="M10 24 L14 25 M10 26 L14 26 M30 24 L26 25 M30 26 L26 26" fill="none" stroke="${w}" stroke-width="1.2" stroke-linecap="round"/>${nO}${eW}`;
+      return `<circle cx="13" cy="15" r="3.5" fill="${f}"/><circle cx="27" cy="15" r="3.5" fill="${f}"/><rect x="9" y="15" width="22" height="18" rx="9" fill="${f}"/><ellipse cx="20" cy="26" rx="6" ry="4" fill="${a}" opacity="0.8"/><path d="M10 24 L14 25 M10 26 L14 26 M30 24 L26 25 M30 26 L26 26" fill="none" stroke="${w}" stroke-width="1.2" stroke-linecap="round"/>${nO}${eW}`;
     case "owl":
       return `<path d="M10 12 L14 16 L26 16 L30 12 L30 26 Q30 32 20 32 Q10 32 10 26 Z" fill="${f}"/><circle cx="15" cy="21" r="4.5" fill="${a}"/><circle cx="25" cy="21" r="4.5" fill="${a}"/><path d="M19 25 L21 25 L20 29 Z" fill="${w}"/>${eW}`;
     case "panda":
-      return `<circle cx="12" cy="12" r="5" fill="${a}"/><circle cx="28" cy="12" r="5" fill="${a}"/><circle cx="20" cy="22" r="12" fill="${f}"/><ellipse cx="15" cy="20" rx="4" ry="3" transform="rotate(-15 15 20)" fill="${a}"/><ellipse cx="25" cy="20" rx="4" ry="3" transform="rotate(15 25 20)" fill="${a}"/>${nT}<circle cx="15" cy="20" r="1.5" fill="${d}"/><circle cx="25" cy="20" r="1.5" fill="${d}"/><circle cx="15.5" cy="19.5" r="0.5" fill="${w}"/><circle cx="25.5" cy="19.5" r="0.5" fill="${w}"/>`;
+      return `<circle cx="12" cy="12" r="5" fill="${a}"/><circle cx="28" cy="12" r="5" fill="${a}"/><circle cx="20" cy="22" r="12" fill="${f}"/><ellipse cx="15" cy="21" rx="4" ry="3" transform="rotate(-15 15 21)" fill="${a}"/><ellipse cx="25" cy="21" rx="4" ry="3" transform="rotate(15 25 21)" fill="${a}"/>${nT}${eS}`;
     case "panther":
-      return `<path d="M11 16 L14 8 L18 14 M29 16 L26 8 L22 14" fill="${f}"/><circle cx="20" cy="22" r="11" fill="${f}"/><path d="M16 26 Q20 29 24 26" fill="none" stroke="${a}" stroke-width="1.5" stroke-linecap="round"/>${nT}<circle cx="15" cy="19" r="2.5" fill="${a}"/><circle cx="25" cy="19" r="2.5" fill="${a}"/><circle cx="15" cy="19" r="1" fill="${d}"/><circle cx="25" cy="19" r="1" fill="${d}"/>`;
+      return `<path d="M11 16 L14 8 L18 14 M29 16 L26 8 L22 14" fill="${f}"/><circle cx="20" cy="22" r="11" fill="${f}"/><path d="M16 26 Q20 29 24 26" fill="none" stroke="${a}" stroke-width="1.5" stroke-linecap="round"/>${nT}<circle cx="15" cy="20" r="3.5" fill="${a}"/><circle cx="25" cy="20" r="3.5" fill="${a}"/><circle cx="15" cy="20" r="1.5" fill="${d}"/><circle cx="25" cy="20" r="1.5" fill="${d}"/>`;
     case "parrot":
       return `<circle cx="20" cy="21" r="11" fill="${f}"/><path d="M16 10 Q20 6 24 10 Z" fill="${a}"/><path d="M22 21 Q32 21 28 30 Q22 28 20 25 Z" fill="${a}"/>${eS}`;
     case "penguin":
       return `<path d="M12 12 Q20 4 28 12 L30 32 L10 32 Z" fill="${f}"/><path d="M14 14 Q20 18 26 14 L28 32 L12 32 Z" fill="${w}" opacity="0.9"/><path d="M18 22 L22 22 L20 28 Z" fill="${a}"/>${eW}`;
     case "rabbit":
-      return `<path d="M14 16 Q10 2 16 6 M26 16 Q30 2 24 6" fill="${f}" stroke="${a}" stroke-width="2"/><circle cx="13" cy="15" r="4" fill="${f}"/><circle cx="27" cy="15" r="4" fill="${f}"/><rect x="10" y="16" width="20" height="18" rx="9" fill="${f}"/><ellipse cx="20" cy="26" rx="4" ry="3" fill="${w}" opacity="0.8"/>${nT}${eW}`;
+      return `<path d="M14 16 Q10 2 16 6 M26 16 Q30 2 24 6" fill="${f}" stroke="${a}" stroke-width="2"/><circle cx="13" cy="15" r="4" fill="${f}"/><circle cx="27" cy="15" r="4" fill="${f}"/><rect x="10" y="16" width="20" height="18" rx="9" fill="${f}"/><ellipse cx="20" cy="27" rx="4" ry="3" fill="${w}" opacity="0.8"/>${nT}${eW}`;
     case "rhino":
-      return `<circle cx="12" cy="15" r="4" fill="${f}"/><circle cx="28" cy="15" r="4" fill="${f}"/><rect x="10" y="15" width="20" height="18" rx="8" fill="${f}"/><ellipse cx="20" cy="26" rx="7" ry="5" fill="${a}" opacity="0.7"/><path d="M18 22 L22 22 L20 14 Z" fill="${w}" opacity="0.8"/>${eW}`;
+      return `<circle cx="12" cy="15" r="4" fill="${f}"/><circle cx="28" cy="15" r="4" fill="${f}"/><rect x="10" y="15" width="20" height="18" rx="8" fill="${f}"/><ellipse cx="20" cy="27" rx="7" ry="5" fill="${a}" opacity="0.7"/><path d="M18 23 L22 23 L20 15 Z" fill="${w}" opacity="0.8"/>${eW}`;
     case "seal":
-      return `<ellipse cx="20" cy="22" rx="12" ry="10" fill="${f}"/><ellipse cx="20" cy="26" rx="6" ry="4" fill="${a}" opacity="0.5"/><path d="M10 24 L14 25 M10 26 L14 26 M30 24 L26 25 M30 26 L26 26" fill="none" stroke="${w}" stroke-width="1" stroke-linecap="round"/>${nO}${eW}`;
+      return `<ellipse cx="20" cy="22" rx="12" ry="10" fill="${f}"/><ellipse cx="20" cy="27" rx="6" ry="4" fill="${a}" opacity="0.5"/><path d="M10 25 L14 26 M10 27 L14 27 M30 25 L26 26 M30 27 L26 27" fill="none" stroke="${w}" stroke-width="1" stroke-linecap="round"/>${nO}${eW}`;
     case "seahorse":
       return `<path d="M22 8 Q14 8 16 16 Q10 20 18 26 Q24 30 20 34 Q28 28 26 20 Z" fill="${f}"/><rect x="12" y="24" width="6" height="3" rx="1.5" fill="${a}" transform="rotate(15 12 24)"/>${eS}`;
     case "shark":
@@ -828,19 +832,19 @@ function animalAvatarFeatureMarkup(profile) {
     case "snail":
       return `<rect x="8" y="26" width="24" height="6" rx="3" fill="${f}"/><circle cx="18" cy="20" r="9" fill="${a}"/><path d="M18 16 A 4 4 0 1 1 14 20 A 2 2 0 1 0 16 20" fill="none" stroke="${d}" stroke-width="1.5"/><circle cx="30" cy="22" r="1.5" fill="${d}"/><circle cx="34" cy="22" r="1.5" fill="${d}"/>`;
     case "squirrel":
-      return `<path d="M28 10 Q36 10 32 22 Q28 30 22 22 Z" fill="${a}"/><path d="M14 16 L16 8 L18 14 M26 16 L24 8 L22 14" fill="${f}"/><rect x="12" y="15" width="16" height="18" rx="8" fill="${f}"/><ellipse cx="20" cy="26" rx="5" ry="4" fill="${w}" opacity="0.8"/>${nT}${eW}`;
+      return `<path d="M28 10 Q36 10 32 22 Q28 30 22 22 Z" fill="${a}"/><path d="M14 16 L16 8 L18 14 M26 16 L24 8 L22 14" fill="${f}"/><rect x="12" y="15" width="16" height="18" rx="8" fill="${f}"/><ellipse cx="20" cy="27" rx="5" ry="4" fill="${w}" opacity="0.8"/>${nT}${eW}`;
     case "tiger":
-      return `<path d="M11 16 L14 10 L18 14 M29 16 L26 10 L22 14" fill="${f}"/><circle cx="20" cy="22" r="12" fill="${f}"/><path d="M16 12 L24 12 M14 16 L26 16 M12 20 L16 20 M28 20 L24 20" fill="none" stroke="${a}" stroke-width="2" stroke-linecap="round"/><ellipse cx="20" cy="26" rx="5" ry="4" fill="${w}" opacity="0.6"/>${nT}${eW}`;
+      return `<path d="M11 16 L14 10 L18 14 M29 16 L26 10 L22 14" fill="${f}"/><circle cx="20" cy="22" r="12" fill="${f}"/><path d="M16 12 L24 12 M14 16 L26 16 M12 20 L16 20 M28 20 L24 20" fill="none" stroke="${a}" stroke-width="2" stroke-linecap="round"/><ellipse cx="20" cy="27" rx="5" ry="4" fill="${w}" opacity="0.6"/>${nT}${eW}`;
     case "toucan":
       return `<circle cx="18" cy="18" r="9" fill="${f}"/><path d="M20 18 Q35 15 32 25 Q20 25 18 22 Z" fill="${a}"/><ellipse cx="15" cy="16" rx="3" ry="3" fill="${w}"/> <circle cx="15" cy="16" r="1.5" fill="${d}"/>`;
     case "turtle":
-      return `<ellipse cx="20" cy="24" rx="14" ry="8" fill="${a}"/><path d="M10 24 Q20 18 30 24 M14 28 L14 32 M26 28 L26 32 M10 24 L6 28 M30 24 L34 28" fill="none" stroke="${d}" stroke-width="2" stroke-linecap="round"/><circle cx="20" cy="14" r="5" fill="${f}"/><circle cx="18" cy="13" r="1" fill="${d}"/><circle cx="22" cy="13" r="1" fill="${d}"/>`;
+      return `<ellipse cx="20" cy="24" rx="14" ry="8" fill="${a}"/><path d="M10 24 Q20 18 30 24 M14 28 L14 32 M26 28 L26 32 M10 24 L6 28 M30 24 L34 28" fill="none" stroke="${d}" stroke-width="2" stroke-linecap="round"/><circle cx="20" cy="14" r="5" fill="${f}"/><circle cx="18" cy="13" r="1.5" fill="${d}"/><circle cx="22" cy="13" r="1.5" fill="${d}"/>`;
     case "walrus":
-      return `<circle cx="12" cy="15" r="4" fill="${f}"/><circle cx="28" cy="15" r="4" fill="${f}"/><rect x="8" y="14" width="24" height="18" rx="9" fill="${f}"/><ellipse cx="20" cy="25" rx="7" ry="5" fill="${a}" opacity="0.6"/><path d="M16 26 L14 34 M24 26 L26 34" fill="none" stroke="${w}" stroke-width="2" stroke-linecap="round"/><path d="M12 23 L16 23 M11 25 L15 25 M28 23 L24 23 M29 25 L25 25" fill="none" stroke="${d}" stroke-width="1" stroke-linecap="round"/>${nO}${eW}`;
+      return `<circle cx="12" cy="15" r="4" fill="${f}"/><circle cx="28" cy="15" r="4" fill="${f}"/><rect x="8" y="14" width="24" height="18" rx="9" fill="${f}"/><ellipse cx="20" cy="26" rx="7" ry="5" fill="${a}" opacity="0.6"/><path d="M16 27 L14 35 M24 27 L26 35" fill="none" stroke="${w}" stroke-width="2" stroke-linecap="round"/><path d="M12 24 L16 24 M11 26 L15 26 M28 24 L24 24 M29 26 L25 26" fill="none" stroke="${d}" stroke-width="1" stroke-linecap="round"/>${nO}${eW}`;
     case "wombat":
-      return `<circle cx="12" cy="14" r="3.5" fill="${f}"/><circle cx="28" cy="14" r="3.5" fill="${f}"/><rect x="8" y="14" width="24" height="20" rx="10" fill="${f}"/><rect x="17" y="23" width="6" height="5" rx="2" fill="${d}"/>${eW}`;
+      return `<circle cx="12" cy="14" r="3.5" fill="${f}"/><circle cx="28" cy="14" r="3.5" fill="${f}"/><rect x="8" y="14" width="24" height="20" rx="10" fill="${f}"/><rect x="17" y="24" width="6" height="4" rx="2" fill="${d}"/>${eW}`;
     case "zebra":
-      return `<path d="M11 16 L7 6 L15 13 M29 16 L33 6 L25 13" fill="${f}" stroke="${a}" stroke-width="1.5"/><rect x="12" y="15" width="16" height="20" rx="8" fill="${f}"/><path d="M14 16 L26 16 M14 20 L26 20 M14 24 L26 24" fill="none" stroke="${a}" stroke-width="2" stroke-linecap="round"/><ellipse cx="20" cy="27" rx="5" ry="4" fill="${a}" opacity="0.3"/>${nO}${eW}`;
+      return `<path d="M11 16 L7 6 L15 13 M29 16 L33 6 L25 13" fill="${f}" stroke="${a}" stroke-width="1.5"/><rect x="12" y="15" width="16" height="20" rx="8" fill="${f}"/><path d="M14 16 L26 16 M14 20 L26 20 M14 24 L26 24" fill="none" stroke="${a}" stroke-width="2" stroke-linecap="round"/><ellipse cx="20" cy="28" rx="5" ry="4" fill="${a}" opacity="0.3"/>${nO}${eW}`;
     default:
       return animalFaceMarkup(profile);
   }
