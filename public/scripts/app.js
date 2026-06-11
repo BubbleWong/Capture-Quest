@@ -1045,7 +1045,7 @@ function animalAvatarFeatureMarkup(profile) {
     case "swan":
       return `<ellipse cx="20" cy="20" rx="8" ry="10" fill="${f}"/><path d="M18 24 L24 24 L20 30 Z" fill="${a}"/>${eS}`;
     case "wolf":
-      return `<path d="M12 16 L6 4 L14 12 M28 16 L34 4 L26 12" fill="${f}" stroke="${a}" stroke-width="1.5"/><path d="M6 14 L34 14 L20 36 Z" fill="${f}"/><path d="M14 20 L26 20 L20 34 Z" fill="${w}" opacity="0.9"/><circle cx="20" cy="32" r="2.5" fill="${a}"/>${nT}${eW}`;
+      return `<path d="M10 40 Q20 28 30 40 Z" fill="${f}"/><path d="M14 16 L4 0 L18 10 Z" fill="${d}"/><path d="M13 13 L6 3 L16 9 Z" fill="${w}"/><path d="M26 16 L36 0 L22 10 Z" fill="${d}"/><path d="M27 13 L34 3 L24 9 Z" fill="${w}"/><ellipse cx="20" cy="18" rx="15" ry="14" fill="${f}"/><path d="M5 18 L35 18 L20 34 Z" fill="${f}"/><path d="M20 34 L10 32 L2 28 L8 24 L2 20 C 4 12 14 14 16 22 L20 34 Z" fill="${w}"/><path d="M20 34 L30 32 L38 28 L32 24 L38 20 C 36 12 26 14 24 22 L20 34 Z" fill="${w}"/><ellipse cx="20" cy="33" rx="3" ry="2" fill="${d}"/><path d="M19 32 Q20 33 21 32" fill="none" stroke="${w}" stroke-width="1" opacity="0.8"/>${eW}`;
     case "yak":
       return `<path d="M12 16 L4 10 L10 12 M28 16 L36 10 L30 12" fill="${a}"/><rect x="10" y="14" width="20" height="22" rx="8" fill="${f}"/><path d="M12 36 L12 28 M16 36 L16 28 M20 36 L20 28 M24 36 L24 28 M28 36 L28 28" fill="none" stroke="${a}" stroke-width="1.5" stroke-linecap="round"/>${nO}${eW}`;
     default:
