@@ -130,7 +130,6 @@ const funnyAnimalUsernames = [
   "Jazzy Leopard",
   "Kite Lynx",
   "Lemon Macaw",
-  "Mud Ostrich",
   "Nacho Peacock",
   "Opal Pelican",
   "Piano Pig",
@@ -233,7 +232,6 @@ const animalAvatarProfiles = {
   leopard: { label: "Leopard", kind: "leopard", bg: "#fff1ad", face: "#e6a137", accent: "#172033" },
   lynx: { label: "Lynx", kind: "lynx", bg: "#fff0cf", face: "#cf9e67", accent: "#ffffff" },
   macaw: { label: "Macaw", kind: "macaw", bg: "#dcf8ff", face: "#4da6ff", accent: "#ffba31" },
-  ostrich: { label: "Ostrich", kind: "ostrich", bg: "#eaf0f4", face: "#3b3e42", accent: "#ffffff" },
   peacock: { label: "Peacock", kind: "peacock", bg: "#dcf8ff", face: "#2d7ab3", accent: "#5bd69c" },
   pelican: { label: "Pelican", kind: "pelican", bg: "#e7f8ff", face: "#ffffff", accent: "#ffba31" },
   pig: { label: "Pig", kind: "pig", bg: "#ffe6ef", face: "#ff9ebf", accent: "#e66a93" },
@@ -969,9 +967,9 @@ function animalAvatarFeatureMarkup(profile) {
     case "butterfly":
       return `<ellipse cx="10" cy="18" rx="8" ry="12" fill="${a}" opacity="0.8"/><ellipse cx="30" cy="18" rx="8" ry="12" fill="${a}" opacity="0.8"/><rect x="17" y="10" width="6" height="24" rx="3" fill="${f}"/><path d="M18 10 Q14 4 16 2 M22 10 Q26 4 24 2" fill="none" stroke="${f}" stroke-width="1.5" stroke-linecap="round"/>${eS}`;
     case "caterpillar":
-      return `<circle cx="10" cy="24" r="6" fill="${a}"/><circle cx="20" cy="22" r="8" fill="${a}"/><circle cx="30" cy="20" r="10" fill="${f}"/><path d="M28 12 Q26 6 28 4 M32 12 Q34 6 32 4" fill="none" stroke="${f}" stroke-width="1.5" stroke-linecap="round"/>${eS}`;
+      return `<circle cx="6" cy="26" r="5" fill="${a}"/><circle cx="12" cy="24" r="7" fill="${a}"/><circle cx="34" cy="26" r="5" fill="${a}"/><circle cx="28" cy="24" r="7" fill="${a}"/><circle cx="20" cy="22" r="11" fill="${f}"/><path d="M16 12 Q14 6 16 4 M24 12 Q26 6 24 4" fill="none" stroke="${f}" stroke-width="1.5" stroke-linecap="round"/>${eS}`;
     case "chameleon":
-      return `<path d="M8 20 Q15 10 30 18 L26 30 Q15 36 8 28 Z" fill="${f}"/><path d="M6 20 Q2 26 8 32 Q12 26 8 24" fill="none" stroke="${a}" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="20" r="5" fill="${a}"/><circle cx="24" cy="20" r="1.5" fill="${d}"/>`;
+      return `<path d="M8 18 Q20 6 32 18 L30 28 Q20 36 10 28 Z" fill="${f}"/><path d="M4 20 Q0 26 6 32 Q10 26 6 24" fill="none" stroke="${a}" stroke-width="2.5" stroke-linecap="round"/><rect x="8" y="10" width="24" height="4" rx="2" fill="${a}" transform="rotate(-5 20 12)"/><path d="M30 14 L36 12 M30 14 L34 16" fill="none" stroke="${a}" stroke-width="2" stroke-linecap="round"/>${eW}`;
     case "chicken":
       return `<circle cx="20" cy="20" r="11" fill="${f}"/><path d="M16 9 Q20 4 24 9 Z" fill="${a}"/><path d="M18 24 L22 24 L20 28 Z" fill="${a}"/>${eL}`;
     case "chinchilla":
@@ -1026,14 +1024,12 @@ function animalAvatarFeatureMarkup(profile) {
       return `<path d="M12 16 L8 4 L16 12 M28 16 L32 4 L24 12" fill="${f}"/><path d="M8 4 L6 0 M32 4 L34 0" fill="none" stroke="${a}" stroke-width="1.5" stroke-linecap="round"/><circle cx="20" cy="22" r="11" fill="${f}"/>${nT}${eW}`;
     case "macaw":
       return `<circle cx="20" cy="18" r="10" fill="${f}"/><path d="M18 22 Q24 22 26 28 Q20 28 18 26 Z" fill="${a}"/>${eS}`;
-    case "ostrich":
-      return `<rect x="14" y="12" width="12" height="24" rx="6" fill="${f}"/><circle cx="14" cy="16" r="3" fill="${a}"/><circle cx="26" cy="16" r="3" fill="${a}"/><path d="M18 24 L22 24 L20 28 Z" fill="${a}"/>${eS}`;
     case "peacock":
       return `<path d="M10 14 Q20 2 30 14 Z" fill="${a}" opacity="0.8"/><circle cx="20" cy="22" r="9" fill="${f}"/><path d="M18 25 L22 25 L20 29 Z" fill="${a}"/><circle cx="20" cy="10" r="1.5" fill="${f}"/><circle cx="14" cy="14" r="1.5" fill="${f}"/><circle cx="26" cy="14" r="1.5" fill="${f}"/>${eS}`;
     case "pelican":
       return `<circle cx="20" cy="18" r="10" fill="${f}"/><path d="M16 24 Q20 36 24 24 Z" fill="${a}"/>${eL}`;
     case "pig":
-      return `<path d="M12 14 L6 8 L14 12 M28 14 L34 8 L26 12" fill="${f}"/><circle cx="20" cy="22" r="12" fill="${f}"/><ellipse cx="20" cy="26" rx="6" ry="4" fill="${a}" opacity="0.8"/><circle cx="18" cy="26" r="1" fill="${d}"/><circle cx="22" cy="26" r="1" fill="${d}"/>${eW}`;
+      return `<circle cx="11" cy="14" r="4.5" fill="${f}"/><circle cx="29" cy="14" r="4.5" fill="${f}"/><path d="M7 14 Q11 8 15 14 Z M33 14 Q29 8 25 14 Z" fill="${a}" opacity="0.5"/><circle cx="20" cy="22" r="12" fill="${f}"/><ellipse cx="20" cy="26" rx="6" ry="4" fill="${a}" opacity="0.8"/><circle cx="18" cy="26" r="1" fill="${d}"/><circle cx="22" cy="26" r="1" fill="${d}"/>${eW}`;
     case "platypus":
       return `<rect x="10" y="14" width="20" height="16" rx="8" fill="${f}"/><rect x="14" y="24" width="12" height="6" rx="3" fill="${a}"/>${eW}`;
     case "porcupine":
@@ -1041,7 +1037,7 @@ function animalAvatarFeatureMarkup(profile) {
     case "raccoon":
       return `<path d="M12 16 L6 8 L14 12 M28 16 L34 8 L26 12" fill="${f}"/><rect x="10" y="14" width="20" height="18" rx="8" fill="${f}"/><rect x="8" y="18" width="24" height="6" rx="3" fill="${a}" opacity="0.6"/>${nT}${eW}`;
     case "rat":
-      return `<circle cx="10" cy="14" r="5" fill="${f}"/><circle cx="30" cy="14" r="5" fill="${f}"/><circle cx="10" cy="14" r="2.5" fill="${a}"/><circle cx="30" cy="14" r="2.5" fill="${a}"/><rect x="10" y="14" width="20" height="18" rx="9" fill="${f}"/>${nT}${eW}`;
+      return `<circle cx="8" cy="12" r="6" fill="${f}"/><circle cx="32" cy="12" r="6" fill="${f}"/><circle cx="8" cy="12" r="3.5" fill="${a}"/><circle cx="32" cy="12" r="3.5" fill="${a}"/><path d="M25 30 Q38 30 36 20" fill="none" stroke="${a}" stroke-width="2.5" stroke-linecap="round"/><path d="M10 14 L20 28 L30 14 Z" fill="${f}"/><rect x="10" y="14" width="20" height="14" rx="7" fill="${f}"/>${nT}${eS}`;
     case "sheep":
       return `<circle cx="12" cy="14" r="4" fill="${f}"/><circle cx="28" cy="14" r="4" fill="${f}"/><circle cx="20" cy="10" r="4" fill="${f}"/><circle cx="16" cy="12" r="4" fill="${f}"/><circle cx="24" cy="12" r="4" fill="${f}"/><rect x="12" y="14" width="16" height="18" rx="8" fill="${a}"/>${nO}${eW}`;
     case "skunk":
@@ -1049,7 +1045,7 @@ function animalAvatarFeatureMarkup(profile) {
     case "swan":
       return `<ellipse cx="20" cy="20" rx="8" ry="10" fill="${f}"/><path d="M18 24 L24 24 L20 30 Z" fill="${a}"/>${eS}`;
     case "wolf":
-      return `<path d="M12 16 L8 4 L16 12 M28 16 L32 4 L24 12" fill="${f}"/><rect x="10" y="14" width="20" height="18" rx="8" fill="${f}"/>${nT}${eW}`;
+      return `<path d="M12 16 L8 4 L16 12 M28 16 L32 4 L24 12" fill="${f}" stroke="${a}" stroke-width="1.5"/><path d="M10 20 L4 24 L10 26 M30 20 L36 24 L30 26" fill="${f}"/><rect x="10" y="14" width="20" height="18" rx="9" fill="${f}"/>${nT}${eW}`;
     case "yak":
       return `<path d="M12 16 L4 10 L10 12 M28 16 L36 10 L30 12" fill="${a}"/><rect x="10" y="14" width="20" height="22" rx="8" fill="${f}"/><path d="M12 36 L12 28 M16 36 L16 28 M20 36 L20 28 M24 36 L24 28 M28 36 L28 28" fill="none" stroke="${a}" stroke-width="1.5" stroke-linecap="round"/>${nO}${eW}`;
     default:
