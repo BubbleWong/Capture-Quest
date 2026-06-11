@@ -969,7 +969,7 @@ function animalAvatarFeatureMarkup(profile) {
     case "caterpillar":
       return `<circle cx="10" cy="24" r="6" fill="${a}"/><circle cx="20" cy="22" r="8" fill="${a}"/><circle cx="30" cy="20" r="10" fill="${f}"/><path d="M28 12 Q26 6 28 4 M32 12 Q34 6 32 4" fill="none" stroke="${f}" stroke-width="1.5" stroke-linecap="round"/><circle cx="27" cy="20" r="2.5" fill="${d}"/><circle cx="33" cy="20" r="2.5" fill="${d}"/><path d="M28 24 Q30 26 32 24" fill="none" stroke="${d}" stroke-width="1.5" stroke-linecap="round"/><ellipse cx="25" cy="22" rx="2" ry="1.5" fill="${a}" opacity="0.4"/><ellipse cx="35" cy="22" rx="2" ry="1.5" fill="${a}" opacity="0.4"/>`;
     case "chameleon":
-      return `<path d="M2 24 A 4 4 0 1 1 10 24 A 4 4 0 0 0 16 28 L30 28 Q36 28 36 20 Q36 12 24 12 Q14 12 12 20 Z" fill="${f}"/><rect x="12" y="12" width="22" height="4" rx="2" fill="${a}"/><path d="M34 14 L38 10 M34 14 L38 18" fill="none" stroke="${a}" stroke-width="2" stroke-linecap="round"/><circle cx="20" cy="22" r="2.5" fill="${d}"/><circle cx="28" cy="22" r="2.5" fill="${d}"/><path d="M23 25 Q24 27 25 25" fill="none" stroke="${d}" stroke-width="1.5" stroke-linecap="round"/>`;
+      return `<path d="M18 10 Q20 4 22 10" fill="${a}" stroke="${a}" stroke-width="2" stroke-linecap="round"/><rect x="10" y="12" width="20" height="20" rx="10" fill="${f}"/><path d="M10 22 Q4 22 4 28 Q4 34 10 30" fill="none" stroke="${f}" stroke-width="3" stroke-linecap="round"/><path d="M30 22 L36 20 M30 24 L36 26" fill="none" stroke="${a}" stroke-width="2" stroke-linecap="round"/>${nO}${eW}`;
     case "chicken":
       return `<circle cx="20" cy="20" r="11" fill="${f}"/><path d="M16 9 Q20 4 24 9 Z" fill="${a}"/><path d="M18 24 L22 24 L20 28 Z" fill="${a}"/>${eL}`;
     case "chinchilla":
@@ -1045,7 +1045,7 @@ function animalAvatarFeatureMarkup(profile) {
     case "swan":
       return `<ellipse cx="20" cy="20" rx="8" ry="10" fill="${f}"/><path d="M18 24 L24 24 L20 30 Z" fill="${a}"/>${eS}`;
     case "wolf":
-      return `<path d="M12 16 L6 4 L14 12 M28 16 L34 4 L26 12" fill="${f}" stroke="${a}" stroke-width="1.5"/><rect x="10" y="14" width="20" height="18" rx="9" fill="${f}"/><ellipse cx="20" cy="26" rx="8" ry="6" fill="${w}" opacity="0.9"/><circle cx="20" cy="24" r="2" fill="${a}"/><path d="M10 20 Q6 22 10 24 M30 20 Q34 22 30 24" fill="none" stroke="${a}" stroke-width="2" stroke-linecap="round"/>${eW}`;
+      return `<path d="M10 18 L4 4 L16 14" fill="${f}" stroke="${a}" stroke-width="1.5"/><path d="M30 18 L36 4 L24 14" fill="${f}" stroke="${a}" stroke-width="1.5"/><path d="M8 14 Q20 8 32 14 L32 30 Q32 36 20 36 Q8 36 8 30 Z" fill="${f}"/><ellipse cx="20" cy="28" rx="7" ry="5" fill="${w}" opacity="0.9"/><ellipse cx="20" cy="26" rx="2" ry="1.5" fill="${a}"/><path d="M18 29 Q20 31 22 29" fill="none" stroke="${a}" stroke-width="1.5" stroke-linecap="round"/>${eW}`;
     case "yak":
       return `<path d="M12 16 L4 10 L10 12 M28 16 L36 10 L30 12" fill="${a}"/><rect x="10" y="14" width="20" height="22" rx="8" fill="${f}"/><path d="M12 36 L12 28 M16 36 L16 28 M20 36 L20 28 M24 36 L24 28 M28 36 L28 28" fill="none" stroke="${a}" stroke-width="1.5" stroke-linecap="round"/>${nO}${eW}`;
     default:
