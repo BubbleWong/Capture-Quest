@@ -313,6 +313,17 @@ const cameraRetryDelayMs = 3000;
 const cameraPermissionCheckMs = 5000;
 const captureMaxSide = 640;
 const captureJpegQuality = 0.62;
+const lobbyAttendantSpeedMin = 18;
+const lobbyAttendantSpeedMax = 42;
+const lobbyAttendantTeamPull = 9;
+const lobbyAttendantTeamDividerGap = 8;
+const lobbyAttendantTeamLabelOffset = 62;
+
+const lobbyAttendantMotion = {
+  rafId: 0,
+  players: new Map(),
+  lastAt: 0
+};
 
 function describeCameraError(error) {
   return error
@@ -2564,6 +2575,336 @@ function updateCountdownDisplays() {
   syncBackgroundMusic();
 }
 
+function playerStatusText(player) {
+  const team = player.teamName ? player.teamName.toLowerCase() : "";
+  return [
+    player.isOwner ? "owner" : "player",
+    team,
+    player.ready ? "ready" : "not ready",
+    player.connected ? "online" : "offline",
+    `${player.score} points`
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function readyStatusIconMarkup(ready) {
+  return ready
+    ? `
+      <svg class="lobby-ready-icon is-ready" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="9"></circle>
+        <path d="M7.8 12.2l2.6 2.7 5.8-6"></path>
+      </svg>
+    `
+    : `
+      <svg class="lobby-ready-icon is-not-ready" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <circle cx="12" cy="12" r="9"></circle>
+        <path d="M8 12h8"></path>
+      </svg>
+    `;
+}
+
+function crownMarkup() {
+  return `
+    <svg class="lobby-owner-crown" viewBox="0 0 32 24" aria-hidden="true" focusable="false">
+      <path d="M3 8l7 5 6-10 6 10 7-5-3 13H6L3 8z"></path>
+      <path d="M7 21h18"></path>
+    </svg>
+  `;
+}
+
+function lobbyAttendantTeamLabels(teams = []) {
+  const sortedTeams = [...teams].sort((a, b) => {
+    if (a.id === "red") return -1;
+    if (b.id === "red") return 1;
+    return a.name.localeCompare(b.name);
+  });
+  const left = sortedTeams[0];
+  const right = sortedTeams[1];
+  if (!left || !right) return "";
+  return `
+    <div class="lobby-team-labels" aria-hidden="true">
+      <span class="lobby-team-label ${teamClass(left.id)}" style="--team-color:${escapeHtml(left.color || "#ff4f5e")}">${escapeHtml(left.name)}</span>
+      <span class="lobby-team-label ${teamClass(right.id)}" style="--team-color:${escapeHtml(right.color || "#4b7dff")}">${escapeHtml(right.name)}</span>
+    </div>
+  `;
+}
+
+function lobbyAttendantTokens(players = []) {
+  const sortedPlayers = [...players].sort(
+    (a, b) => Number(b.isOwner) - Number(a.isOwner) || a.username.localeCompare(b.username)
+  );
+  const teamCounts = sortedPlayers.reduce((counts, player) => {
+    const key = player.teamId || "all";
+    counts.set(key, (counts.get(key) || 0) + 1);
+    return counts;
+  }, new Map());
+  const teamIndexes = new Map();
+  return sortedPlayers
+    .map((player) => {
+      const statusText = playerStatusText(player);
+      const teamId = player.teamId || "";
+      const teamKey = teamId || "all";
+      const teamIndex = teamIndexes.get(teamKey) || 0;
+      teamIndexes.set(teamKey, teamIndex + 1);
+      const side = teamId === "blue" ? "right" : "left";
+      return `
+        <div
+          class="lobby-attendant-token ${player.connected ? "is-online" : "is-offline"} ${player.ready ? "is-ready" : "is-not-ready"} ${player.isOwner ? "is-owner" : ""} ${teamId ? teamClass(teamId) : ""}"
+          aria-label="${escapeHtml(`${player.username} · ${statusText}`)}"
+          data-player-id="${escapeHtml(player.id)}"
+          data-team-id="${escapeHtml(teamId)}"
+          data-team-index="${teamIndex}"
+          data-team-count="${teamCounts.get(teamKey) || 1}"
+          data-team-side="${side}"
+          style="${teamId ? `--team-color:${escapeHtml(player.teamColor || "#4b7dff")}` : ""}"
+        >
+          <span class="lobby-attendant-avatar">
+            ${player.isOwner ? crownMarkup() : ""}
+            ${animalAvatarMarkup(player.username)}
+            <span class="lobby-ready-state" aria-label="${player.ready ? "Ready" : "Not ready"}">${readyStatusIconMarkup(player.ready)}</span>
+            <span class="lobby-attendant-score" aria-label="${escapeHtml(`${signedScore(player.score)} points`)}">${escapeHtml(signedScore(player.score))}</span>
+          </span>
+          <span class="lobby-attendant-name">${escapeHtml(player.username)}</span>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function stopLobbyAttendantMotion() {
+  if (lobbyAttendantMotion.rafId) {
+    cancelAnimationFrame(lobbyAttendantMotion.rafId);
+    lobbyAttendantMotion.rafId = 0;
+  }
+  lobbyAttendantMotion.lastAt = 0;
+}
+
+function attendantInitialMotion(playerId, index, bounds, width, height) {
+  const seed = hashString(`${playerId}:${index}`);
+  const minX = bounds.x || 0;
+  const minY = bounds.y || 0;
+  const maxX = Math.max(0, bounds.width - width);
+  const maxY = Math.max(0, bounds.height - height);
+  const angle = (((seed % 360) + 27) * Math.PI) / 180;
+  const speed = lobbyAttendantSpeedMin + (seed % (lobbyAttendantSpeedMax - lobbyAttendantSpeedMin));
+  return {
+    x: minX + (maxX ? (seed * 37) % maxX : 0),
+    y: minY + (maxY ? (seed * 53) % maxY : 0),
+    vx: Math.cos(angle) * speed || speed,
+    vy: Math.sin(angle) * speed || speed * 0.72,
+    width,
+    height,
+    radius: Math.max(width, height) / 2,
+    targetXRatio: 0.18 + ((seed >> 3) % 64) / 100,
+    targetYRatio: 0.16 + ((seed >> 5) % 68) / 100,
+    zoneKey: bounds.key || "all"
+  };
+}
+
+function keepAttendantInBounds(item, bounds) {
+  const minX = bounds.x || 0;
+  const minY = bounds.y || 0;
+  const maxX = minX + Math.max(0, bounds.width - item.width);
+  const maxY = minY + Math.max(0, bounds.height - item.height);
+  if (item.x <= minX) {
+    item.x = minX;
+    item.vx = Math.abs(item.vx);
+  } else if (item.x >= maxX) {
+    item.x = maxX;
+    item.vx = -Math.abs(item.vx);
+  }
+  if (item.y <= minY) {
+    item.y = minY;
+    item.vy = Math.abs(item.vy);
+  } else if (item.y >= maxY) {
+    item.y = maxY;
+    item.vy = -Math.abs(item.vy);
+  }
+}
+
+function attendantZoneForNode(node, bounds, teamUpEnabled) {
+  const baseZone = { ...bounds, key: "all", x: 0, y: 0 };
+  if (!teamUpEnabled) return baseZone;
+
+  const half = bounds.width / 2;
+  const side = node.dataset.teamSide === "right" ? "right" : "left";
+  const zoneY = lobbyAttendantTeamLabelOffset;
+  const zoneHeight = Math.max(0, bounds.height - lobbyAttendantTeamLabelOffset);
+  if (side === "right") {
+    const x = half + lobbyAttendantTeamDividerGap / 2;
+    return {
+      key: "right",
+      x,
+      y: zoneY,
+      width: Math.max(0, bounds.width - x),
+      height: zoneHeight
+    };
+  }
+
+  return {
+    key: "left",
+    x: 0,
+    y: zoneY,
+    width: Math.max(0, half - lobbyAttendantTeamDividerGap / 2),
+    height: zoneHeight
+  };
+}
+
+function attendantIsInsideZone(item, zone) {
+  return (
+    item.x >= zone.x &&
+    item.y >= zone.y &&
+    item.x + item.width <= zone.x + zone.width &&
+    item.y + item.height <= zone.y + zone.height
+  );
+}
+
+function guideAttendantTowardZone(item, zone, dt) {
+  if (zone.key === "all") return;
+
+  const insideZone = attendantIsInsideZone(item, zone);
+  const availableX = Math.max(0, zone.width - item.width);
+  const availableY = Math.max(0, zone.height - item.height);
+  const targetX = zone.x + availableX * item.targetXRatio;
+  const targetY = zone.y + availableY * item.targetYRatio;
+  item.vx += (targetX - item.x) * lobbyAttendantTeamPull * dt;
+  item.vy += (targetY - item.y) * lobbyAttendantTeamPull * dt;
+
+  if (!insideZone) {
+    if (item.x < zone.x) item.vx = Math.max(item.vx, lobbyAttendantSpeedMax * 3.4);
+    if (item.x + item.width > zone.x + zone.width) item.vx = Math.min(item.vx, -lobbyAttendantSpeedMax * 3.4);
+  }
+
+  const maxSpeed = insideZone ? lobbyAttendantSpeedMax * 1.8 : lobbyAttendantSpeedMax * 5.2;
+  const speed = Math.hypot(item.vx, item.vy);
+  if (speed > maxSpeed) {
+    item.vx = (item.vx / speed) * maxSpeed;
+    item.vy = (item.vy / speed) * maxSpeed;
+  }
+}
+
+function bounceAttendants(first, second) {
+  const firstCenterX = first.x + first.width / 2;
+  const firstCenterY = first.y + first.height / 2;
+  const secondCenterX = second.x + second.width / 2;
+  const secondCenterY = second.y + second.height / 2;
+  const dx = secondCenterX - firstCenterX;
+  const dy = secondCenterY - firstCenterY;
+  const distance = Math.max(0.01, Math.hypot(dx, dy));
+  const minDistance = Math.max(86, (first.radius + second.radius) * 1.18);
+  if (distance >= minDistance) return;
+
+  const nx = dx / distance;
+  const ny = dy / distance;
+  const overlap = (minDistance - distance) / 2;
+  first.x -= nx * overlap;
+  first.y -= ny * overlap;
+  second.x += nx * overlap;
+  second.y += ny * overlap;
+
+  const tangentX = -ny;
+  const tangentY = nx;
+  const firstNormal = first.vx * nx + first.vy * ny;
+  const secondNormal = second.vx * nx + second.vy * ny;
+  const firstTangent = first.vx * tangentX + first.vy * tangentY;
+  const secondTangent = second.vx * tangentX + second.vy * tangentY;
+
+  first.vx = secondNormal * nx + firstTangent * tangentX;
+  first.vy = secondNormal * ny + firstTangent * tangentY;
+  second.vx = firstNormal * nx + secondTangent * tangentX;
+  second.vy = firstNormal * ny + secondTangent * tangentY;
+}
+
+function startLobbyAttendantMotion() {
+  const arena = document.querySelector("#lobbyAttendantArena");
+  if (!arena) {
+    stopLobbyAttendantMotion();
+    return;
+  }
+
+  stopLobbyAttendantMotion();
+  const nodes = Array.from(arena.querySelectorAll(".lobby-attendant-token"));
+  const teamUpEnabled = arena.dataset.teamUp === "true";
+  const activeIds = new Set(nodes.map((node) => node.dataset.playerId || ""));
+  for (const playerId of Array.from(lobbyAttendantMotion.players.keys())) {
+    if (!activeIds.has(playerId)) lobbyAttendantMotion.players.delete(playerId);
+  }
+
+  const animate = (now) => {
+    const bounds = {
+      key: "all",
+      x: 0,
+      y: 0,
+      width: arena.clientWidth,
+      height: arena.clientHeight
+    };
+    if (!bounds.width || !bounds.height) {
+      lobbyAttendantMotion.rafId = requestAnimationFrame(animate);
+      return;
+    }
+    const dt = lobbyAttendantMotion.lastAt ? Math.min(0.04, (now - lobbyAttendantMotion.lastAt) / 1000) : 0;
+    lobbyAttendantMotion.lastAt = now;
+
+    const items = nodes.map((node, index) => {
+      const playerId = node.dataset.playerId || `player-${index}`;
+      const width = node.offsetWidth || 72;
+      const height = node.offsetHeight || 76;
+      const zone = attendantZoneForNode(node, bounds, teamUpEnabled);
+      let item = lobbyAttendantMotion.players.get(playerId);
+      if (!item) {
+        item = attendantInitialMotion(playerId, index, zone, width, height);
+        lobbyAttendantMotion.players.set(playerId, item);
+      }
+      item.width = width;
+      item.height = height;
+      item.radius = Math.max(width, height) / 2;
+      if (teamUpEnabled && zone.key !== "all") {
+        const teamIndex = Number(node.dataset.teamIndex || 0);
+        const teamCount = Math.max(1, Number(node.dataset.teamCount || 1));
+        item.targetYRatio = Math.min(0.94, Math.max(0.06, (teamIndex + 0.5) / teamCount));
+        item.targetXRatio = teamIndex % 2 === 0 ? 0.18 : 0.78;
+      }
+      guideAttendantTowardZone(item, zone, dt);
+      item.x += item.vx * dt;
+      item.y += item.vy * dt;
+      keepAttendantInBounds(item, zone.key === "all" || attendantIsInsideZone(item, zone) ? zone : bounds);
+      return { node, item, zone };
+    });
+
+    for (let i = 0; i < items.length; i += 1) {
+      for (let j = i + 1; j < items.length; j += 1) {
+        if (teamUpEnabled && items[i].zone.key !== items[j].zone.key) continue;
+        if (
+          teamUpEnabled &&
+          (!attendantIsInsideZone(items[i].item, items[i].zone) ||
+            !attendantIsInsideZone(items[j].item, items[j].zone))
+        ) {
+          continue;
+        }
+        bounceAttendants(items[i].item, items[j].item);
+        keepAttendantInBounds(
+          items[i].item,
+          items[i].zone.key === "all" || attendantIsInsideZone(items[i].item, items[i].zone) ? items[i].zone : bounds
+        );
+        keepAttendantInBounds(
+          items[j].item,
+          items[j].zone.key === "all" || attendantIsInsideZone(items[j].item, items[j].zone) ? items[j].zone : bounds
+        );
+      }
+    }
+
+    for (const { node, item, zone } of items) {
+      keepAttendantInBounds(item, zone.key === "all" || attendantIsInsideZone(item, zone) ? zone : bounds);
+      node.style.transform = `translate3d(${item.x}px, ${item.y}px, 0)`;
+    }
+
+    lobbyAttendantMotion.rafId = requestAnimationFrame(animate);
+  };
+
+  lobbyAttendantMotion.rafId = requestAnimationFrame(animate);
+}
+
 function playerRows(players) {
   return [...players]
     .sort((a, b) => b.score - a.score || Number(b.isOwner) - Number(a.isOwner) || a.username.localeCompare(b.username))
@@ -3029,6 +3370,15 @@ function renderLobby() {
   const cameraReady = Boolean(cameraState.stream);
   const cameraMessage = cameraState.error || (cameraReady ? "Camera ready" : "Camera permission needed");
   const gameOptionsDisabled = game.status !== "lobby";
+  const redTeam = (game.teams || []).find((team) => team.id === "red") || game.teams?.[0];
+  const blueTeam = (game.teams || []).find((team) => team.id === "blue") || game.teams?.[1];
+  const attendantArenaStyle = [
+    `--attendant-count:${game.players.length}`,
+    game.teamUpEnabled && redTeam ? `--left-team-color:${escapeHtml(redTeam.color || "#ff4f5e")}` : "",
+    game.teamUpEnabled && blueTeam ? `--right-team-color:${escapeHtml(blueTeam.color || "#4b7dff")}` : ""
+  ]
+    .filter(Boolean)
+    .join(";");
   app.innerHTML = `
     <section class="screen lobby-layout">
       <div class="panel-title">
@@ -3066,11 +3416,25 @@ function renderLobby() {
               </div>
             </div>
           </div>
+          <div class="lobby-attendant-section">
+            <div class="lobby-attendant-head">
+              <span class="reference-label">Attendants</span>
+              <span class="lobby-attendant-count">${game.players.length}/${game.maxPlayers}</span>
+            </div>
+            <div
+              class="lobby-attendant-arena ${game.teamUpEnabled ? "is-team-up" : ""}"
+              id="lobbyAttendantArena"
+              data-team-up="${game.teamUpEnabled ? "true" : "false"}"
+              style="${attendantArenaStyle}"
+              aria-label="Game attendants"
+            >
+              ${game.teamUpEnabled ? lobbyAttendantTeamLabels(game.teams || []) : ""}
+              ${lobbyAttendantTokens(game.players)}
+            </div>
+          </div>
         </section>
       </div>
-      <aside class="compact-panel stack">
-        <h2>Players ${game.players.length}/${game.maxPlayers}</h2>
-        <ul class="player-list">${playerRows(game.players)}</ul>
+      <aside class="compact-panel stack lobby-controls-panel">
         <details class="lobby-options">
           <summary>Game options</summary>
           <div class="lobby-options-stack">
@@ -3313,6 +3677,11 @@ function render() {
   if (state.view === "lobby") renderLobby();
   if (state.view === "game") renderGame();
   if (state.view === "end") renderEnd();
+  if (state.view === "lobby") {
+    startLobbyAttendantMotion();
+  } else {
+    stopLobbyAttendantMotion();
+  }
   renderGlobalNotifications();
   if (previousView && previousView !== state.view) {
     window.scrollTo({ top: 0, left: 0 });

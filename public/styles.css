@@ -856,6 +856,238 @@ button:disabled {
   width: 100%;
 }
 
+.lobby-attendant-section {
+  border-top: 2px solid rgba(23, 32, 51, 0.14);
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.lobby-attendant-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lobby-attendant-count {
+  background: #f8fbff;
+  border: 2px solid rgba(23, 32, 51, 0.18);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 950;
+  padding: 3px 8px;
+}
+
+.lobby-attendant-arena {
+  background:
+    linear-gradient(135deg, rgba(255, 227, 94, 0.36), rgba(57, 199, 212, 0.22) 56%, rgba(255, 111, 97, 0.22)),
+    #f8fbff;
+  border: 2px solid rgba(23, 32, 51, 0.18);
+  border-radius: 8px;
+  height: clamp(210px, calc(176px + var(--attendant-count, 1) * 4px), 380px);
+  overflow: hidden;
+  position: relative;
+}
+
+.lobby-attendant-arena.is-team-up {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 79, 94, 0.18) 0 calc(50% - 1px),
+      rgba(23, 32, 51, 0.42) calc(50% - 1px) calc(50% + 1px),
+      rgba(75, 125, 255, 0.18) calc(50% + 1px) 100%
+    ),
+    #f8fbff;
+  height: clamp(420px, calc(300px + var(--attendant-count, 1) * 24px), 940px);
+}
+
+.lobby-attendant-arena.is-team-up::before {
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(23, 32, 51, 0.78) 0 12px,
+    rgba(23, 32, 51, 0.08) 12px 22px
+  );
+  content: "";
+  height: 100%;
+  left: calc(50% - 1px);
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  width: 2px;
+  z-index: 1;
+}
+
+.lobby-team-labels {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  left: 10px;
+  pointer-events: none;
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  z-index: 3;
+}
+
+.lobby-team-label {
+  background: rgba(255, 255, 255, 0.78);
+  border: 2px solid var(--team-color);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 0.66rem;
+  font-weight: 1000;
+  justify-self: start;
+  line-height: 1;
+  padding: 4px 8px;
+  text-transform: uppercase;
+}
+
+.lobby-team-label:last-child {
+  justify-self: end;
+}
+
+.lobby-attendant-token {
+  align-items: center;
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+  left: 0;
+  min-width: 62px;
+  padding: 3px;
+  position: absolute;
+  top: 0;
+  will-change: transform;
+  z-index: 2;
+}
+
+.lobby-attendant-token.is-offline {
+  opacity: 0.58;
+}
+
+.lobby-attendant-avatar {
+  background: rgba(255, 255, 255, 0.88);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 4px 0 rgba(23, 32, 51, 0.14);
+  display: inline-flex;
+  padding: 2px;
+  position: relative;
+}
+
+.lobby-attendant-token.is-team-red .lobby-attendant-avatar,
+.lobby-attendant-token.is-team-blue .lobby-attendant-avatar {
+  border-color: var(--team-color);
+  box-shadow: 0 4px 0 rgba(23, 32, 51, 0.14);
+}
+
+.lobby-owner-crown {
+  fill: var(--yellow);
+  filter: drop-shadow(0 2px 0 rgba(23, 32, 51, 0.26));
+  height: 20px;
+  left: 50%;
+  overflow: visible;
+  position: absolute;
+  stroke: var(--ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3px;
+  top: -16px;
+  transform: translateX(-50%) rotate(-4deg);
+  width: 26px;
+  z-index: 2;
+}
+
+.lobby-attendant-avatar .animal-avatar {
+  height: 40px;
+  width: 40px;
+}
+
+.lobby-attendant-name {
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid rgba(23, 32, 51, 0.2);
+  border-radius: 8px;
+  color: var(--ink);
+  display: -webkit-box;
+  font-size: 0.66rem;
+  font-weight: 950;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.02;
+  max-width: 86px;
+  min-height: 24px;
+  overflow: hidden;
+  padding: 3px 6px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.lobby-attendant-token.is-owner .lobby-attendant-name {
+  background: var(--yellow);
+  border-color: var(--ink);
+}
+
+.lobby-ready-state,
+.lobby-attendant-score {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(23, 32, 51, 0.18);
+  border-radius: 999px;
+  display: inline-flex;
+  justify-content: center;
+  position: absolute;
+  z-index: 3;
+}
+
+.lobby-ready-state {
+  bottom: -5px;
+  height: 20px;
+  left: -6px;
+  width: 20px;
+}
+
+.lobby-ready-icon {
+  fill: none;
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.6px;
+  width: 16px;
+}
+
+.lobby-ready-icon.is-ready {
+  color: #0b7a46;
+}
+
+.lobby-ready-icon.is-not-ready {
+  color: #a06700;
+}
+
+.lobby-attendant-score {
+  bottom: -5px;
+  color: var(--ink);
+  font-size: 0.64rem;
+  font-weight: 1000;
+  line-height: 1;
+  min-width: 24px;
+  padding: 4px 6px;
+  right: -8px;
+}
+
+.lobby-attendant-token.is-team-red .lobby-attendant-score,
+.lobby-attendant-token.is-team-blue .lobby-attendant-score {
+  border-color: var(--team-color);
+}
+
+.lobby-controls-panel {
+  align-self: start;
+}
+
 .compact-panel {
   background: #ffffff;
   border: 2px solid var(--ink);
@@ -1987,6 +2219,67 @@ body.is-game-active .main-stage {
     line-height: 1.08;
     min-height: 52px;
     padding: 8px;
+  }
+
+  .lobby-attendant-arena {
+    height: clamp(230px, calc(188px + var(--attendant-count, 1) * 5px), 430px);
+  }
+
+  .lobby-attendant-arena.is-team-up {
+    height: clamp(520px, calc(360px + var(--attendant-count, 1) * 36px), 1180px);
+  }
+
+  .lobby-attendant-token {
+    min-width: 56px;
+  }
+
+  .lobby-owner-crown {
+    height: 17px;
+    top: -14px;
+    width: 22px;
+  }
+
+  .lobby-attendant-avatar .animal-avatar {
+    height: 34px;
+    width: 34px;
+  }
+
+  .lobby-attendant-name {
+    font-size: 0.56rem;
+    max-width: 82px;
+    min-height: 22px;
+    padding: 3px 5px;
+  }
+
+  .lobby-ready-state {
+    bottom: -5px;
+    height: 18px;
+    left: -6px;
+    width: 18px;
+  }
+
+  .lobby-ready-icon {
+    height: 14px;
+    width: 14px;
+  }
+
+  .lobby-attendant-score {
+    bottom: -5px;
+    font-size: 0.58rem;
+    min-width: 22px;
+    padding: 4px 5px;
+    right: -8px;
+  }
+
+  .lobby-team-labels {
+    left: 8px;
+    right: 8px;
+    top: 7px;
+  }
+
+  .lobby-team-label {
+    font-size: 0.54rem;
+    padding: 4px 6px;
   }
 
   .game-target-word {

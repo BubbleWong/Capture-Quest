@@ -417,6 +417,7 @@ export class GameEngine {
       pauseState: null,
       loadingItems: null
     };
+    if (game.teamUpEnabled) this.assignBalancedTeams(game);
     this.games.set(gameId, game);
     socket.join(gameId);
     this.socketSessions.set(socket.id, { gameId, playerId: player.id });
@@ -449,6 +450,7 @@ export class GameEngine {
     this.detachSocket(socket);
     const player = this.createPlayer(socket, username, false, clientId);
     game.players.set(player.id, player);
+    if (game.teamUpEnabled) this.assignPlayerToBalancedTeam(game, player);
     socket.join(gameId);
     this.socketSessions.set(socket.id, { gameId, playerId: player.id });
     this.emitNotice(game, `${player.username} joined the quest.`);
@@ -512,10 +514,11 @@ export class GameEngine {
     );
     const nextChallengeLanguage = cleanChallengeLanguage(payload.challengeLanguage);
     const nextTeamUpEnabled = cleanBoolean(payload.teamUpEnabled);
+    const teamModeChanged = game.teamUpEnabled !== nextTeamUpEnabled;
     const changed =
       game.initialChallengeInput !== nextInitialChallengeInput ||
       game.challengeLanguage !== nextChallengeLanguage ||
-      game.teamUpEnabled !== nextTeamUpEnabled;
+      teamModeChanged;
 
     game.initialChallengeInput = nextInitialChallengeInput;
     game.challengeLanguage = nextChallengeLanguage;
@@ -527,6 +530,8 @@ export class GameEngine {
       for (const currentPlayer of game.players.values()) {
         currentPlayer.teamId = null;
       }
+    } else if (teamModeChanged || [...game.players.values()].some((currentPlayer) => !currentPlayer.teamId)) {
+      this.assignBalancedTeams(game);
     }
     if (changed) {
       for (const currentPlayer of game.players.values()) {
@@ -546,7 +551,9 @@ export class GameEngine {
     if (game.status !== "lobby") return { error: "The game is not in the lobby." };
     if (!this.allPlayersReady(game)) return { error: "Every player must be ready before the game can start." };
 
-    this.assignBalancedTeams(game);
+    if (!game.teamUpEnabled || [...game.players.values()].some((currentPlayer) => !currentPlayer.teamId)) {
+      this.assignBalancedTeams(game);
+    }
     game.status = "loading";
     game.startedAt = Date.now();
     game.endedAt = null;
@@ -588,8 +595,12 @@ export class GameEngine {
     game.itemQueue = [];
     game.initialChallengeInput = "";
     game.initialChallengePrepared = true;
-    for (const currentPlayer of game.players.values()) {
-      currentPlayer.teamId = null;
+    if (game.teamUpEnabled) {
+      this.assignBalancedTeams(game);
+    } else {
+      for (const currentPlayer of game.players.values()) {
+        currentPlayer.teamId = null;
+      }
     }
     this.emitState(game);
     return { game, player };
@@ -955,6 +966,29 @@ export class GameEngine {
     players.forEach((player, index) => {
       player.teamId = teams[index % teams.length]?.id || null;
     });
+  }
+
+  assignPlayerToBalancedTeam(game, player) {
+    if (!game.teamUpEnabled) {
+      player.teamId = null;
+      return;
+    }
+
+    const teams = [...game.teams];
+    if (!teams.length) {
+      player.teamId = null;
+      return;
+    }
+
+    const counts = new Map(teams.map((team) => [team.id, 0]));
+    for (const currentPlayer of game.players.values()) {
+      if (currentPlayer.id !== player.id && counts.has(currentPlayer.teamId)) {
+        counts.set(currentPlayer.teamId, counts.get(currentPlayer.teamId) + 1);
+      }
+    }
+    const lowestCount = Math.min(...counts.values());
+    const candidates = teams.filter((team) => counts.get(team.id) === lowestCount);
+    player.teamId = candidates[crypto.randomInt(candidates.length)]?.id || null;
   }
 
   async prepareInitialChallengeQueue(game) {

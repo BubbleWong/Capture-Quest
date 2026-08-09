@@ -431,6 +431,8 @@ test("edits lobby names and game options before the game starts", async () => {
   assert.equal(game.initialChallengeInput, "shoe, bag");
   assert.equal(game.teamUpEnabled, true);
   assert.equal(game.teams.length, 2);
+  assert.match(ownerPlayer.teamId, /^(red|blue)$/);
+  assert.match(joined.player.teamId, /^(red|blue)$/);
   assert.equal(ownerPlayer.ready, false);
   assert.equal(joined.player.ready, false);
   assert.equal(owner.last("game_state").challengeLanguage, "fr");
