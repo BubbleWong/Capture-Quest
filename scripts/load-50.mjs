@@ -359,6 +359,8 @@ try {
     clients[client.index] = replacement;
   }
 
+  await emitAck(clients[clients.length - 1], "set_ready", { gameId: created.gameId, ready: false }, metrics);
+  await waitFor(() => clients[0].latestState?.allReady === false, "one player unready");
   const blockedStart = await emitAck(clients[0], "start_game", { gameId: created.gameId }, metrics);
   assert.equal(blockedStart.ok, false);
   assert.match(blockedStart.error, /ready/i);

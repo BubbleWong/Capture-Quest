@@ -265,6 +265,7 @@ const state = {
   prefillGameId: initialGameId,
   ownerNamePlaceholder: "",
   joinNamePlaceholder: "",
+  lobbyGuideOpen: false,
   lastRenderedView: ""
 };
 
@@ -1585,9 +1586,24 @@ async function updateGameOptions(formData) {
   });
   if (response.ok) {
     setNotice("Game options saved.");
+    return true;
   } else {
     setNotice(response.error);
+    return false;
   }
+}
+
+function lobbyGameOptionsFormData(overrides = {}) {
+  const formData = new FormData();
+  const game = state.game || {};
+  formData.set("challengeLanguage", overrides.challengeLanguage ?? game.challengeLanguage ?? "en");
+  formData.set("initialChallengeInput", overrides.initialChallengeInput ?? game.initialChallengeInput ?? "");
+  if (overrides.teamUpEnabled ?? game.teamUpEnabled) formData.set("teamUpEnabled", "on");
+  return formData;
+}
+
+function updateLobbyGameOptions(overrides = {}) {
+  return updateGameOptions(lobbyGameOptionsFormData(overrides));
 }
 
 async function startGame() {
@@ -2630,7 +2646,7 @@ function lobbyAttendantTeamLabels(teams = []) {
   `;
 }
 
-function lobbyAttendantTokens(players = []) {
+function lobbyAttendantTokens(players = [], viewerPlayerId = "") {
   const sortedPlayers = [...players].sort(
     (a, b) => Number(b.isOwner) - Number(a.isOwner) || a.username.localeCompare(b.username)
   );
@@ -2648,15 +2664,18 @@ function lobbyAttendantTokens(players = []) {
       const teamIndex = teamIndexes.get(teamKey) || 0;
       teamIndexes.set(teamKey, teamIndex + 1);
       const side = teamId === "blue" ? "right" : "left";
+      const isMe = player.id === viewerPlayerId;
       return `
         <div
-          class="lobby-attendant-token ${player.connected ? "is-online" : "is-offline"} ${player.ready ? "is-ready" : "is-not-ready"} ${player.isOwner ? "is-owner" : ""} ${teamId ? teamClass(teamId) : ""}"
-          aria-label="${escapeHtml(`${player.username} · ${statusText}`)}"
+          class="lobby-attendant-token ${player.connected ? "is-online" : "is-offline"} ${player.ready ? "is-ready" : "is-not-ready"} ${player.isOwner ? "is-owner" : ""} ${isMe ? "is-me" : ""} ${teamId ? teamClass(teamId) : ""}"
+          aria-label="${escapeHtml(`${player.username} · ${statusText}${isMe ? " · tap to toggle ready" : ""}`)}"
           data-player-id="${escapeHtml(player.id)}"
+          data-is-me="${isMe ? "true" : "false"}"
           data-team-id="${escapeHtml(teamId)}"
           data-team-index="${teamIndex}"
           data-team-count="${teamCounts.get(teamKey) || 1}"
           data-team-side="${side}"
+          ${isMe ? 'role="button" tabindex="0"' : ""}
           style="${teamId ? `--team-color:${escapeHtml(player.teamColor || "#4b7dff")}` : ""}"
         >
           <span class="lobby-attendant-avatar">
@@ -2837,7 +2856,7 @@ function startLobbyAttendantMotion() {
       x: 0,
       y: 0,
       width: arena.clientWidth,
-      height: arena.clientHeight
+      height: Math.max(120, arena.clientHeight)
     };
     if (!bounds.width || !bounds.height) {
       lobbyAttendantMotion.rafId = requestAnimationFrame(animate);
@@ -2943,6 +2962,20 @@ function challengeLanguageOptionMarkup(selectedValue = "en") {
         `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`
     )
     .join("");
+}
+
+function challengeLanguageLabel(value = "en") {
+  const normalized = String(value || "en").toLowerCase();
+  return challengeLanguageOptions.find(([optionValue]) => optionValue === normalized)?.[1] || "English";
+}
+
+function challengeLanguageCodeLabel(value = "en") {
+  const normalized = String(value || "en").toLowerCase();
+  if (normalized === "zh-hans-yue") return "ZH-S-YUE";
+  if (normalized === "zh-hans-cmn") return "ZH-S-MAN";
+  if (normalized === "zh-hant-yue") return "ZH-T-YUE";
+  if (normalized === "zh-hant-cmn") return "ZH-T-MAN";
+  return normalized.toUpperCase();
 }
 
 function teamClass(teamId = "") {
@@ -3335,7 +3368,7 @@ function renderJoin() {
             </div>
             <span class="field-hint" id="gameCodeError" aria-live="polite"></span>
           </div>
-          <p class="field-note">You will get a random player name now and can change it in the lobby before you press Ready.</p>
+          <p class="field-note">You will get a random player name now and can change it in the lobby. Tap your avatar there to switch ready status.</p>
           <button class="primary-button" type="submit">Join game</button>
           <button class="secondary-button" id="backToChoiceButton" type="button">Back</button>
         </form>
@@ -3369,7 +3402,7 @@ function renderLobby() {
   const isOwner = me?.id === game.ownerPlayerId;
   const cameraReady = Boolean(cameraState.stream);
   const cameraMessage = cameraState.error || (cameraReady ? "Camera ready" : "Camera permission needed");
-  const gameOptionsDisabled = game.status !== "lobby";
+  const gameOptionsDisabled = !isOwner || game.status !== "lobby";
   const redTeam = (game.teams || []).find((team) => team.id === "red") || game.teams?.[0];
   const blueTeam = (game.teams || []).find((team) => team.id === "blue") || game.teams?.[1];
   const attendantArenaStyle = [
@@ -3379,123 +3412,185 @@ function renderLobby() {
   ]
     .filter(Boolean)
     .join(";");
+  const languageLabel = challengeLanguageLabel(game.challengeLanguage);
+  const languageCode = challengeLanguageCodeLabel(game.challengeLanguage);
+  const languageControl = isOwner
+    ? `
+      <label class="lobby-language-control" title="Change game language">
+        <span class="lobby-control-label">Language</span>
+        <select class="lobby-language-select" id="lobbyLanguageSelect" aria-label="Game language" ${gameOptionsDisabled ? "disabled" : ""}>
+          ${challengeLanguageOptionMarkup(game.challengeLanguage)}
+        </select>
+      </label>
+    `
+    : `
+      <span class="lobby-chip-button is-static" title="${escapeHtml(languageLabel)}">
+        <span class="lobby-control-label">Language</span>
+        <strong>${escapeHtml(languageCode)}</strong>
+      </span>
+    `;
+  const guidePanel = isOwner && state.lobbyGuideOpen
+    ? `
+      <dialog class="lobby-guide-dialog" id="lobbyGuideDialog" aria-labelledby="lobbyGuideTitle">
+        <div class="lobby-guide-head">
+          <div>
+            <h3 id="lobbyGuideTitle">Objects or AI guide</h3>
+            <p>Enter a list or describe what AI should generate.</p>
+          </div>
+          <button class="icon-button lobby-guide-close" id="closeLobbyGuideButton" type="button" aria-label="Hide object guide" title="Hide">×</button>
+        </div>
+        <form class="lobby-guide-form stack" id="lobbyGuideForm">
+          <textarea class="text-input word-list-input" name="initialChallengeInput" autocomplete="off" autocapitalize="sentences" spellcheck="true" rows="4" placeholder="pencil, backpack&#10;blue shoes; notebook&#10;&#10;or: soft colorful things safe for young kids" ${gameOptionsDisabled ? "disabled" : ""}>${escapeHtml(game.initialChallengeInput || "")}</textarea>
+          <small class="field-note">AI refines lists and prompts for safety and camera recognition. Leave blank for random AI picks.</small>
+          <button class="secondary-button" type="submit" ${gameOptionsDisabled ? "disabled" : ""}>Save object guide</button>
+        </form>
+      </dialog>
+    `
+    : "";
   app.innerHTML = `
     <section class="screen lobby-layout">
       <div class="panel-title">
-        <div class="lobby-heading">
-          <div>
-            <h1>Lobby</h1>
-            <p>Share this card with players nearby.</p>
+        <div class="lobby-top-row">
+          <div class="lobby-heading">
+            <div>
+              <h1>Lobby</h1>
+              <p>Share this card with players nearby.</p>
+            </div>
+            ${game.status === "loading" ? `<div class="lobby-status-row"><span class="status-chip">loading objects</span></div>` : ""}
           </div>
-          <div class="lobby-status-row">
-            ${game.status === "loading" ? `<span class="status-chip">loading objects</span>` : ""}
-            ${game.teamUpEnabled ? `<span class="status-chip team-mode-chip">Team-up on</span>` : ""}
+          <section class="join-reference-card" aria-label="Game joining information">
+            <div class="join-reference-body">
+              ${
+                state.qrCode
+                  ? `
+                    <div class="join-reference-qr">
+                      <div class="qr-wrap join-qr-wrap"><img src="${state.qrCode}" alt="QR code for game ${escapeHtml(game.id)}"></div>
+                    </div>
+                  `
+                  : ""
+              }
+              <div class="join-reference-details">
+                <div class="join-reference-section">
+                  <span class="reference-label">Game ID</span>
+                  <div class="game-code">${escapeHtml(game.id)}</div>
+                </div>
+                <div class="join-reference-section join-share-section">
+                  <button class="secondary-button copy-url-button" id="copyUrlButton" type="button" aria-label="Copy URL to share" title="Copy URL to share">Copy URL to share</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <div class="lobby-attendant-section">
+          <div class="lobby-attendant-head">
+            <span class="reference-label">Attendants</span>
+            <div class="lobby-setup-controls" aria-label="Lobby controls">
+              <span class="lobby-attendant-count" aria-label="${game.players.length} of ${game.maxPlayers} players">${game.players.length}/${game.maxPlayers}</span>
+              ${languageControl}
+              <button
+                class="lobby-chip-button ${game.teamUpEnabled ? "is-active" : ""}"
+                id="lobbyTeamToggleButton"
+                type="button"
+                ${gameOptionsDisabled ? "disabled" : ""}
+                aria-pressed="${game.teamUpEnabled ? "true" : "false"}"
+                title="${isOwner ? "Toggle team-up mode" : "Only the owner can change team-up mode"}"
+              >
+                <span class="lobby-control-label">Teams</span>
+                <strong>${game.teamUpEnabled ? "On" : "Off"}</strong>
+              </button>
+              ${
+                isOwner
+                  ? `
+                    <button class="lobby-chip-button" id="lobbyGuideButton" type="button" aria-expanded="${state.lobbyGuideOpen ? "true" : "false"}">
+                      <span class="lobby-control-label">Objects</span>
+                      <strong>Guide</strong>
+                    </button>
+                  `
+                  : ""
+              }
+            </div>
+          </div>
+          <div
+            class="lobby-attendant-arena ${game.teamUpEnabled ? "is-team-up" : ""}"
+            id="lobbyAttendantArena"
+            data-team-up="${game.teamUpEnabled ? "true" : "false"}"
+            style="${attendantArenaStyle}"
+            aria-label="Game attendants"
+          >
+            ${game.teamUpEnabled ? lobbyAttendantTeamLabels(game.teams || []) : ""}
+            ${lobbyAttendantTokens(game.players, me?.id)}
+          </div>
+          <div class="lobby-arena-action-bar">
+            <div class="lobby-ready-copy">
+              <strong>${me?.ready ? "You are ready" : "You are not ready"}</strong>
+              <span>Tap your avatar to switch.</span>
+            </div>
+            <div class="lobby-arena-actions">
+              <span class="lobby-camera-chip ${cameraReady ? "is-ready" : "is-needed"}">${escapeHtml(cameraMessage)}</span>
+              ${cameraReady ? "" : `<button class="secondary-button lobby-small-action" id="enableCameraButton" type="button">Enable camera</button>`}
+              ${
+                isOwner
+                  ? `<button class="primary-button lobby-small-action" id="startButton" type="button" ${!game.allReady || game.status === "loading" ? "disabled" : ""}>Start game</button>`
+                  : ""
+              }
+              ${
+                isOwner
+                  ? `<button class="danger-button lobby-small-action" id="endGameButton" type="button">End game</button>`
+                  : `<button class="secondary-button lobby-small-action" id="leaveGameButton" type="button">Leave game</button>`
+              }
+            </div>
           </div>
         </div>
-        <section class="join-reference-card" aria-labelledby="joinReferenceTitle">
-          <div class="join-reference-head">
-            <h2 id="joinReferenceTitle">Join this game</h2>
-          </div>
-          <div class="join-reference-body">
-            ${
-              state.qrCode
-                ? `
-                  <div class="join-reference-qr">
-                    <div class="qr-wrap join-qr-wrap"><img src="${state.qrCode}" alt="QR code for game ${escapeHtml(game.id)}"></div>
-                  </div>
-                `
-                : ""
-            }
-            <div class="join-reference-details">
-              <div class="join-reference-section">
-                <span class="reference-label">Game ID</span>
-                <div class="game-code">${escapeHtml(game.id)}</div>
-              </div>
-              <div class="join-reference-section join-share-section">
-                <button class="secondary-button copy-url-button" id="copyUrlButton" type="button" aria-label="Copy URL to share" title="Copy URL to share">Copy URL to share</button>
-              </div>
-            </div>
-          </div>
-          <div class="lobby-attendant-section">
-            <div class="lobby-attendant-head">
-              <span class="reference-label">Attendants</span>
-              <span class="lobby-attendant-count">${game.players.length}/${game.maxPlayers}</span>
-            </div>
-            <div
-              class="lobby-attendant-arena ${game.teamUpEnabled ? "is-team-up" : ""}"
-              id="lobbyAttendantArena"
-              data-team-up="${game.teamUpEnabled ? "true" : "false"}"
-              style="${attendantArenaStyle}"
-              aria-label="Game attendants"
-            >
-              ${game.teamUpEnabled ? lobbyAttendantTeamLabels(game.teams || []) : ""}
-              ${lobbyAttendantTokens(game.players)}
-            </div>
-          </div>
-        </section>
       </div>
-      <aside class="compact-panel stack lobby-controls-panel">
-        <details class="lobby-options">
-          <summary>Game options</summary>
-          <div class="lobby-options-stack">
-            ${
-              isOwner
-                ? `
-                  <form class="lobby-option-card stack" id="gameOptionsForm">
-                    <h3>Round options</h3>
-                    <label class="field">
-                      <span>Language</span>
-                      <select class="text-input" name="challengeLanguage" ${gameOptionsDisabled ? "disabled" : ""}>
-                        ${challengeLanguageOptionMarkup(game.challengeLanguage)}
-                      </select>
-                    </label>
-                    <label class="field">
-                      <span>Objects or AI guide</span>
-                      <textarea class="text-input word-list-input" name="initialChallengeInput" autocomplete="off" autocapitalize="sentences" spellcheck="true" rows="4" placeholder="pencil, backpack&#10;blue shoes; notebook&#10;&#10;or: soft colorful things safe for young kids" ${gameOptionsDisabled ? "disabled" : ""}>${escapeHtml(game.initialChallengeInput || "")}</textarea>
-                      <small class="field-note">Enter a list or describe what AI should generate. AI will refine it for safety and camera recognition. Leave blank for random AI picks.</small>
-                    </label>
-                    <label class="toggle-field">
-                      <input name="teamUpEnabled" type="checkbox" ${game.teamUpEnabled ? "checked" : ""} ${gameOptionsDisabled ? "disabled" : ""}>
-                      <span class="toggle-control" aria-hidden="true"></span>
-                      <span>
-                        <strong>Team-up mode</strong>
-                        <small>Randomly balance players into red and blue teams.</small>
-                      </span>
-                    </label>
-                    <button class="secondary-button" type="submit" ${gameOptionsDisabled ? "disabled" : ""}>Save game options</button>
-                    <small class="field-note">Changing game options resets everyone to not ready.</small>
-                  </form>
-                `
-                : `<p class="field-note">The game owner can edit round options before the game starts.</p>`
-            }
-          </div>
-        </details>
-        <div class="camera-lobby-status">
-          <p class="camera-message">${escapeHtml(cameraMessage)}</p>
-          ${cameraReady ? "" : `<button class="secondary-button" id="enableCameraButton" type="button">Enable camera</button>`}
-        </div>
-        <button class="${me?.ready ? "secondary-button" : "primary-button"}" id="readyButton" type="button">
-          ${me?.ready ? "Set not ready" : "Ready"}
-        </button>
-        ${
-          isOwner
-            ? `<button class="primary-button" id="startButton" type="button" ${!game.allReady || game.status === "loading" ? "disabled" : ""}>Start game</button>`
-            : ""
-        }
-        ${
-          isOwner
-            ? `<button class="danger-button" id="endGameButton" type="button">End game</button>`
-            : `<button class="secondary-button" id="leaveGameButton" type="button">Leave game</button>`
-        }
-      </aside>
+      ${guidePanel}
     </section>
   `;
 
-  document.querySelector("#gameOptionsForm")?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    updateGameOptions(new FormData(event.currentTarget));
+  document.querySelector("#lobbyLanguageSelect")?.addEventListener("change", (event) => {
+    updateLobbyGameOptions({ challengeLanguage: event.currentTarget.value });
   });
-  document.querySelector("#readyButton").addEventListener("click", () => setReady(!me.ready));
+  document.querySelector("#lobbyTeamToggleButton")?.addEventListener("click", () => {
+    updateLobbyGameOptions({ teamUpEnabled: !game.teamUpEnabled });
+  });
+  document.querySelector("#lobbyGuideButton")?.addEventListener("click", () => {
+    state.lobbyGuideOpen = true;
+    render();
+  });
+  const lobbyGuideDialog = document.querySelector("#lobbyGuideDialog");
+  const closeLobbyGuide = () => {
+    state.lobbyGuideOpen = false;
+    render();
+  };
+  document.querySelector("#closeLobbyGuideButton")?.addEventListener("click", closeLobbyGuide);
+  lobbyGuideDialog?.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeLobbyGuide();
+  });
+  lobbyGuideDialog?.addEventListener("click", (event) => {
+    if (event.target !== lobbyGuideDialog) return;
+    const bounds = lobbyGuideDialog.getBoundingClientRect();
+    const clickedInside =
+      event.clientX >= bounds.left &&
+      event.clientX <= bounds.right &&
+      event.clientY >= bounds.top &&
+      event.clientY <= bounds.bottom;
+    if (!clickedInside) closeLobbyGuide();
+  });
+  document.querySelector("#lobbyGuideForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const saved = await updateLobbyGameOptions({
+      initialChallengeInput: String(new FormData(event.currentTarget).get("initialChallengeInput") || "").trim()
+    });
+    if (saved) closeLobbyGuide();
+  });
+  if (lobbyGuideDialog && !lobbyGuideDialog.open) lobbyGuideDialog.showModal();
+  const meToken = document.querySelector(".lobby-attendant-token.is-me");
+  meToken?.addEventListener("click", () => setReady(!me.ready));
+  meToken?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    setReady(!me.ready);
+  });
   document.querySelector("#enableCameraButton")?.addEventListener("click", enableCamera);
   document.querySelector("#copyUrlButton").addEventListener("click", async () => {
     try {
@@ -3802,7 +3897,7 @@ function openPlayerNameDialog() {
         </div>
         <small class="field-note">${
           canEditName
-            ? "Leave blank or tap the dice for a random name. Saving a name sets you to not ready."
+            ? "Leave blank or tap the dice for a random name."
             : "Names can only be changed in the lobby."
         }</small>
       </label>

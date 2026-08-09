@@ -494,7 +494,6 @@ export class GameEngine {
 
     const previousUsername = player.username;
     player.username = username;
-    player.ready = false;
     if (!usernamesMatch(previousUsername, username)) {
       this.emitNotice(game, `${previousUsername} is now ${username}.`);
     }
@@ -515,29 +514,36 @@ export class GameEngine {
     const nextChallengeLanguage = cleanChallengeLanguage(payload.challengeLanguage);
     const nextTeamUpEnabled = cleanBoolean(payload.teamUpEnabled);
     const teamModeChanged = game.teamUpEnabled !== nextTeamUpEnabled;
-    const changed =
+    const challengeSettingsChanged =
       game.initialChallengeInput !== nextInitialChallengeInput ||
-      game.challengeLanguage !== nextChallengeLanguage ||
-      teamModeChanged;
+      game.challengeLanguage !== nextChallengeLanguage;
 
     game.initialChallengeInput = nextInitialChallengeInput;
     game.challengeLanguage = nextChallengeLanguage;
     game.teamUpEnabled = nextTeamUpEnabled;
-    game.teams = createTeams(nextTeamUpEnabled);
-    game.initialChallengePrepared = false;
-    game.itemQueue = [];
-    if (!nextTeamUpEnabled) {
-      for (const currentPlayer of game.players.values()) {
-        currentPlayer.teamId = null;
+    if (challengeSettingsChanged) {
+      game.initialChallengePrepared = false;
+      game.itemQueue = [];
+    }
+    if (teamModeChanged) {
+      game.teams = createTeams(nextTeamUpEnabled);
+      if (!nextTeamUpEnabled) {
+        for (const currentPlayer of game.players.values()) {
+          currentPlayer.teamId = null;
+        }
+      } else {
+        this.assignBalancedTeams(game);
       }
-    } else if (teamModeChanged || [...game.players.values()].some((currentPlayer) => !currentPlayer.teamId)) {
+    } else if (nextTeamUpEnabled && [...game.players.values()].some((currentPlayer) => !currentPlayer.teamId)) {
       this.assignBalancedTeams(game);
     }
-    if (changed) {
+    if (challengeSettingsChanged) {
       for (const currentPlayer of game.players.values()) {
         currentPlayer.ready = false;
       }
       this.emitNotice(game, "Game options updated. Ready up when you are set.");
+    } else if (teamModeChanged) {
+      this.emitNotice(game, `Team-up mode turned ${nextTeamUpEnabled ? "on" : "off"}.`);
     }
     this.emitState(game);
     return { game, player };
@@ -823,7 +829,7 @@ export class GameEngine {
       teamScores: currentTeamScores,
       challengeLanguage: game.challengeLanguage,
       challengeLanguageName: challengeLanguageName(game.challengeLanguage),
-      initialChallengeInput: game.initialChallengeInput,
+      ...(viewerPlayerId === game.ownerPlayerId ? { initialChallengeInput: game.initialChallengeInput } : {}),
       maxPlayers: this.config.game.maxPlayers,
       roundNumber: game.roundNumber,
       roundsAwarded: game.roundsAwarded,
@@ -871,7 +877,7 @@ export class GameEngine {
       pointsFound: 0,
       penalties: 0,
       teamId: null,
-      ready: false,
+      ready: true,
       isOwner,
       connected: true,
       joinedAt: Date.now()

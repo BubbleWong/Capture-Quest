@@ -688,7 +688,6 @@ button:disabled {
   width: 42px;
 }
 
-.lobby-layout,
 .game-layout,
 .end-layout {
   display: grid;
@@ -697,10 +696,24 @@ button:disabled {
   padding: clamp(18px, 4vw, 30px);
 }
 
+.lobby-layout {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 1fr;
+  padding: clamp(18px, 4vw, 30px);
+}
+
 .panel-title {
   align-content: start;
   display: grid;
   gap: 14px;
+}
+
+.lobby-top-row {
+  align-items: center;
+  display: grid;
+  gap: clamp(18px, 3vw, 36px);
+  grid-template-columns: minmax(250px, 1fr) 460px;
 }
 
 .lobby-heading {
@@ -731,34 +744,21 @@ button:disabled {
 }
 
 .join-reference-card {
-  --join-qr-size: 153px;
+  --join-qr-size: 96px;
   background: #ffffff;
-  border: var(--border);
   border-radius: 8px;
-  box-shadow: 0 8px 0 rgba(23, 32, 51, 0.1);
   display: grid;
-  gap: 14px;
-  max-width: 760px;
-  padding: clamp(14px, 2.6vw, 22px);
-}
-
-.join-reference-head {
-  align-items: center;
-  display: flex;
-  gap: 8px;
-  justify-content: space-between;
-}
-
-.join-reference-head h2 {
-  font-size: clamp(1.55rem, 4vw, 2.35rem);
-  line-height: 1;
-  margin: 0;
+  gap: 10px;
+  justify-self: end;
+  max-width: 460px;
+  padding: 8px;
+  width: 460px;
 }
 
 .join-reference-body {
   align-items: center;
   display: grid;
-  gap: 16px;
+  gap: 12px;
   grid-template-columns: var(--join-qr-size) minmax(0, 1fr);
 }
 
@@ -775,7 +775,9 @@ button:disabled {
   align-self: center;
   align-content: center;
   display: grid;
-  gap: 12px;
+  gap: 6px;
+  grid-template-rows: minmax(0, 1fr) 38px;
+  height: var(--join-qr-size);
   min-width: 0;
 }
 
@@ -785,8 +787,13 @@ button:disabled {
 
 .join-reference-section {
   display: grid;
-  gap: 6px;
+  gap: 3px;
   min-width: 0;
+}
+
+.join-reference-card .reference-label {
+  font-size: 0.65rem;
+  line-height: 1;
 }
 
 .reference-label {
@@ -814,8 +821,9 @@ button:disabled {
 }
 
 .join-reference-card .game-code {
-  font-size: clamp(1.8rem, 6vw, 3rem);
-  padding: 10px 12px;
+  font-size: clamp(1.35rem, 3vw, 1.5rem);
+  min-height: 36px;
+  padding: 3px 8px;
   width: 100%;
 }
 
@@ -852,7 +860,10 @@ button:disabled {
 }
 
 .copy-url-button {
-  min-height: 46px;
+  font-size: 0.86rem;
+  line-height: 1;
+  min-height: 38px;
+  padding: 6px 10px;
   width: 100%;
 }
 
@@ -866,18 +877,160 @@ button:disabled {
 .lobby-attendant-head {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 10px;
 }
 
 .lobby-attendant-count {
+  align-items: center;
   background: #f8fbff;
   border: 2px solid rgba(23, 32, 51, 0.18);
   border-radius: 999px;
   color: var(--muted);
-  font-size: 0.78rem;
+  display: inline-flex;
+  font-size: 0.76rem;
   font-weight: 950;
-  padding: 3px 8px;
+  min-height: 34px;
+  padding: 5px 10px;
+}
+
+.lobby-setup-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.lobby-chip-button,
+.lobby-language-control {
+  align-items: center;
+  background: #ffffff;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 4px 0 rgba(23, 32, 51, 0.12);
+  color: var(--ink);
+  display: inline-flex;
+  gap: 6px;
+  min-height: 34px;
+  padding: 5px 10px;
+}
+
+.lobby-chip-button {
+  cursor: pointer;
+  font-weight: 950;
+}
+
+.lobby-chip-button.is-active {
+  background: var(--green);
+}
+
+.lobby-chip-button.is-static,
+.lobby-chip-button:disabled {
+  cursor: default;
+}
+
+.lobby-control-label {
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 1000;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.lobby-language-control {
+  position: relative;
+}
+
+.lobby-language-control::after {
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--ink);
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-45%);
+}
+
+.lobby-language-select {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 950;
+  max-width: 190px;
+  min-width: 82px;
+  outline: 0;
+  padding: 0 14px 0 0;
+}
+
+.lobby-guide-dialog {
+  background: #f8fbff;
+  border: var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  gap: 12px;
+  max-height: calc(100dvh - 32px);
+  max-width: 620px;
+  overflow: auto;
+  padding: clamp(14px, 3vw, 22px);
+  width: calc(100% - 28px);
+}
+
+.lobby-guide-dialog[open] {
+  display: grid;
+}
+
+.lobby-guide-dialog::backdrop {
+  backdrop-filter: blur(3px);
+  background: rgba(23, 32, 51, 0.48);
+}
+
+.lobby-guide-head {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.lobby-guide-head h3,
+.lobby-guide-head p {
+  margin: 0;
+}
+
+.lobby-guide-head h3 {
+  font-size: 1rem;
+}
+
+.lobby-guide-head p {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 850;
+  margin-top: 3px;
+}
+
+.lobby-guide-close {
+  flex: 0 0 auto;
+  height: 34px;
+  width: 34px;
+}
+
+.lobby-guide-preview {
+  background: #ffffff;
+  border: 2px solid rgba(23, 32, 51, 0.14);
+  border-radius: 8px;
+  color: var(--muted);
+  font-weight: 850;
+  margin: 0;
+  padding: 10px;
+  white-space: pre-wrap;
 }
 
 .lobby-attendant-arena {
@@ -886,7 +1039,7 @@ button:disabled {
     #f8fbff;
   border: 2px solid rgba(23, 32, 51, 0.18);
   border-radius: 8px;
-  height: clamp(210px, calc(176px + var(--attendant-count, 1) * 4px), 380px);
+  height: clamp(340px, calc(260px + var(--attendant-count, 1) * 8px), 640px);
   overflow: hidden;
   position: relative;
 }
@@ -900,7 +1053,7 @@ button:disabled {
       rgba(75, 125, 255, 0.18) calc(50% + 1px) 100%
     ),
     #f8fbff;
-  height: clamp(420px, calc(300px + var(--attendant-count, 1) * 24px), 940px);
+  height: clamp(460px, calc(340px + var(--attendant-count, 1) * 16px), 900px);
 }
 
 .lobby-attendant-arena.is-team-up::before {
@@ -960,6 +1113,15 @@ button:disabled {
   top: 0;
   will-change: transform;
   z-index: 2;
+}
+
+.lobby-attendant-token.is-me {
+  cursor: pointer;
+}
+
+.lobby-attendant-token.is-me:focus-visible {
+  outline: 3px solid var(--yellow);
+  outline-offset: 4px;
 }
 
 .lobby-attendant-token.is-offline {
@@ -1082,6 +1244,67 @@ button:disabled {
 .lobby-attendant-token.is-team-red .lobby-attendant-score,
 .lobby-attendant-token.is-team-blue .lobby-attendant-score {
   border-color: var(--team-color);
+}
+
+.lobby-arena-action-bar {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid rgba(23, 32, 51, 0.18);
+  border-radius: 8px;
+  box-shadow: 0 6px 0 rgba(23, 32, 51, 0.1);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 8px;
+}
+
+.lobby-ready-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 150px;
+}
+
+.lobby-ready-copy strong {
+  font-size: 0.84rem;
+  line-height: 1;
+}
+
+.lobby-ready-copy span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.lobby-arena-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.lobby-camera-chip {
+  background: #ffffff;
+  border: 2px solid rgba(23, 32, 51, 0.14);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 950;
+  max-width: 210px;
+  overflow: hidden;
+  padding: 6px 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lobby-camera-chip.is-ready {
+  background: rgba(94, 209, 125, 0.25);
+  color: var(--ink);
+}
+
+.lobby-small-action {
+  min-height: 36px;
+  padding: 7px 12px;
 }
 
 .lobby-controls-panel {
@@ -1360,11 +1583,6 @@ button:disabled {
   justify-content: center;
   line-height: 1;
   width: 26px;
-}
-
-.team-mode-chip {
-  background: linear-gradient(90deg, #ff4f5e, #4b7dff);
-  color: #ffffff;
 }
 
 .target-panel {
@@ -2021,6 +2239,19 @@ body.is-game-active .main-stage {
   display: none !important;
 }
 
+@media (max-width: 1100px) {
+  .lobby-top-row {
+    grid-template-columns: 1fr;
+    min-width: 0;
+  }
+
+  .join-reference-card {
+    justify-self: start;
+    min-width: 0;
+    width: 100%;
+  }
+}
+
 @media (max-width: 860px) {
   .screen-grid,
   .lobby-layout,
@@ -2048,7 +2279,7 @@ body.is-game-active .main-stage {
   }
 
   .join-reference-card {
-    --join-qr-size: 146px;
+    --join-qr-size: 96px;
   }
 
   .join-reference-body {
@@ -2187,8 +2418,8 @@ body.is-game-active .main-stage {
   }
 
   .join-reference-card {
-    --join-qr-size: 146px;
-    padding: 12px;
+    --join-qr-size: 96px;
+    padding: 8px;
   }
 
   .join-reference-body {
@@ -2209,24 +2440,43 @@ body.is-game-active .main-stage {
   }
 
   .join-reference-card .game-code {
-    font-size: clamp(1.35rem, 6.6vw, 1.9rem);
-    min-height: 66px;
-    padding: 8px 6px;
+    font-size: clamp(1.25rem, 6vw, 1.5rem);
+    min-height: 36px;
+    padding: 3px 6px;
   }
 
   .copy-url-button {
-    font-size: 0.86rem;
-    line-height: 1.08;
-    min-height: 52px;
-    padding: 8px;
+    font-size: 0.78rem;
+    line-height: 1;
+    min-height: 38px;
+    padding: 6px;
+  }
+
+  .lobby-attendant-head {
+    align-items: flex-start;
+    display: grid;
+  }
+
+  .lobby-setup-controls {
+    justify-content: flex-start;
+  }
+
+  .lobby-language-select {
+    max-width: 130px;
+  }
+
+  .lobby-guide-dialog {
+    max-height: calc(100dvh - 20px);
+    padding: 12px;
+    width: calc(100% - 20px);
   }
 
   .lobby-attendant-arena {
-    height: clamp(230px, calc(188px + var(--attendant-count, 1) * 5px), 430px);
+    height: clamp(390px, calc(300px + var(--attendant-count, 1) * 8px), 660px);
   }
 
   .lobby-attendant-arena.is-team-up {
-    height: clamp(520px, calc(360px + var(--attendant-count, 1) * 36px), 1180px);
+    height: clamp(500px, calc(380px + var(--attendant-count, 1) * 18px), 980px);
   }
 
   .lobby-attendant-token {
@@ -2269,6 +2519,31 @@ body.is-game-active .main-stage {
     min-width: 22px;
     padding: 4px 5px;
     right: -8px;
+  }
+
+  .lobby-arena-action-bar {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .lobby-ready-copy {
+    min-width: 0;
+  }
+
+  .lobby-arena-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+  }
+
+  .lobby-camera-chip {
+    grid-column: 1 / -1;
+    max-width: none;
+    text-align: center;
+  }
+
+  .lobby-small-action {
+    width: 100%;
   }
 
   .lobby-team-labels {

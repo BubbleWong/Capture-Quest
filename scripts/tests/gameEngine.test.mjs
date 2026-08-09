@@ -416,7 +416,7 @@ test("edits lobby names and game options before the game starts", async () => {
   });
   assert.equal(renamed.error, undefined);
   assert.equal(joined.player.username, "Scout");
-  assert.equal(joined.player.ready, false);
+  assert.equal(joined.player.ready, true);
 
   ownerPlayer.ready = true;
   joined.player.ready = true;
@@ -437,9 +437,36 @@ test("edits lobby names and game options before the game starts", async () => {
   assert.equal(joined.player.ready, false);
   assert.equal(owner.last("game_state").challengeLanguage, "fr");
   assert.equal(owner.last("game_state").initialChallengeInput, "shoe, bag");
+  assert.equal(playerSocket.last("game_state").initialChallengeInput, undefined);
 
   const blockedStart = await engine.startGame(owner, { gameId: game.id });
   assert.match(blockedStart.error, /Every player must be ready/);
+
+  ownerPlayer.ready = true;
+  joined.player.ready = true;
+  const teamOff = engine.updateGameOptions(owner, {
+    gameId: game.id,
+    challengeLanguage: "fr",
+    initialChallengeInput: "shoe, bag",
+    teamUpEnabled: false
+  });
+  assert.equal(teamOff.error, undefined);
+  assert.equal(ownerPlayer.ready, true);
+  assert.equal(joined.player.ready, true);
+  assert.equal(ownerPlayer.teamId, null);
+  assert.equal(joined.player.teamId, null);
+
+  const teamOn = engine.updateGameOptions(owner, {
+    gameId: game.id,
+    challengeLanguage: "fr",
+    initialChallengeInput: "shoe, bag",
+    teamUpEnabled: true
+  });
+  assert.equal(teamOn.error, undefined);
+  assert.equal(ownerPlayer.ready, true);
+  assert.equal(joined.player.ready, true);
+  assert.match(ownerPlayer.teamId, /^(red|blue)$/);
+  assert.match(joined.player.teamId, /^(red|blue)$/);
 
   await startReadyGame(engine, owner, game, [playerSocket]);
   assert.equal(llmCalls.prepareInitialItems[0].language, "French");
@@ -528,6 +555,8 @@ test("creates, joins, rejoins, gates readiness, and starts localized rounds", as
     clientId: clientIds.playerA
   });
   assert.equal(joined.error, undefined);
+  assert.equal(ownerPlayer.ready, true);
+  assert.equal(joined.player.ready, true);
 
   const duplicateName = engine.joinGame(io.createSocket("duplicate-name"), {
     gameId: game.id,
@@ -536,6 +565,7 @@ test("creates, joins, rejoins, gates readiness, and starts localized rounds", as
   });
   assert.match(duplicateName.error, /already used/);
 
+  joined.player.ready = false;
   const blockedStart = await engine.startGame(owner, { gameId: game.id });
   assert.match(blockedStart.error, /Every player must be ready/);
 
