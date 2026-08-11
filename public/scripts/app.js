@@ -319,6 +319,11 @@ const lobbyAttendantSpeedMax = 42;
 const lobbyAttendantTeamPull = 9;
 const lobbyAttendantTeamDividerGap = 8;
 const lobbyAttendantTeamLabelOffset = 62;
+const lobbyAttendantGridThreshold = 12;
+const lobbyAttendantGridGap = 10;
+const lobbyAttendantGridDrift = 7;
+const lobbyAttendantGridEase = 10;
+const lobbyAttendantTiltDegrees = 5.5;
 
 const lobbyAttendantMotion = {
   rafId: 0,
@@ -1065,14 +1070,17 @@ function animalAvatarFeatureMarkup(profile) {
   }
 }
 
-function animalAvatarMarkup(username, { compact = false } = {}) {
+function animalAvatarMarkup(username, { compact = false, ring = true } = {}) {
   const profile = animalAvatarProfile(username);
+  const ringClass = ring ? " animal-avatar-ring" : "";
   return `
-    <span class="animal-avatar ${compact ? "is-compact" : ""}" title="${escapeHtml(profile.label)} avatar" aria-hidden="true">
+    <span class="animal-avatar-wrap${ringClass}" title="${escapeHtml(profile.label)} avatar" aria-hidden="true">
+      <span class="animal-avatar ${compact ? "is-compact" : ""}">
       <svg class="animal-avatar-icon" viewBox="0 0 40 40" focusable="false">
         <circle cx="20" cy="20" r="19" fill="${escapeHtml(profile.bg)}"/>
         ${animalAvatarFeatureMarkup(profile)}
       </svg>
+      </span>
     </span>
   `;
 }
@@ -1440,7 +1448,7 @@ function updateConnection(online) {
 
 function activeViewFromGame(game) {
   if (!game) return null;
-  if (game.status === "ended") return "end";
+  if (game.status === "ended") return "lobby";
   if (game.status === "lobby") return "lobby";
   if (game.status === "loading") {
     return game.currentRound || game.roundNumber > 0 || game.nextRoundAt || game.lastResult ? "game" : "lobby";
@@ -2595,6 +2603,7 @@ function playerStatusText(player) {
   const team = player.teamName ? player.teamName.toLowerCase() : "";
   return [
     player.isOwner ? "owner" : "player",
+    player.isWinner ? "winner" : "",
     team,
     player.ready ? "ready" : "not ready",
     player.connected ? "online" : "offline",
@@ -2629,6 +2638,18 @@ function crownMarkup() {
   `;
 }
 
+function trophyMarkup() {
+  return `
+    <svg class="lobby-winner-trophy" viewBox="0 0 32 30" aria-hidden="true" focusable="false">
+      <path d="M10 5h12v7.5c0 4-2.5 7.5-6 7.5s-6-3.5-6-7.5V5z"></path>
+      <path d="M10 8H5.5v2.2c0 3.7 2.3 5.8 6.1 6.1"></path>
+      <path d="M22 8h4.5v2.2c0 3.7-2.3 5.8-6.1 6.1"></path>
+      <path d="M16 20v4"></path>
+      <path d="M11 26h10"></path>
+    </svg>
+  `;
+}
+
 function lobbyAttendantTeamLabels(teams = []) {
   const sortedTeams = [...teams].sort((a, b) => {
     if (a.id === "red") return -1;
@@ -2646,7 +2667,7 @@ function lobbyAttendantTeamLabels(teams = []) {
   `;
 }
 
-function lobbyAttendantTokens(players = [], viewerPlayerId = "") {
+function lobbyAttendantTokens(players = [], viewerPlayerId = "", { readyToggleEnabled = true } = {}) {
   const sortedPlayers = [...players].sort(
     (a, b) => Number(b.isOwner) - Number(a.isOwner) || a.username.localeCompare(b.username)
   );
@@ -2665,22 +2686,24 @@ function lobbyAttendantTokens(players = [], viewerPlayerId = "") {
       teamIndexes.set(teamKey, teamIndex + 1);
       const side = teamId === "blue" ? "right" : "left";
       const isMe = player.id === viewerPlayerId;
+      const canToggleReady = isMe && readyToggleEnabled;
       return `
         <div
-          class="lobby-attendant-token ${player.connected ? "is-online" : "is-offline"} ${player.ready ? "is-ready" : "is-not-ready"} ${player.isOwner ? "is-owner" : ""} ${isMe ? "is-me" : ""} ${teamId ? teamClass(teamId) : ""}"
-          aria-label="${escapeHtml(`${player.username} · ${statusText}${isMe ? " · tap to toggle ready" : ""}`)}"
+          class="lobby-attendant-token ${player.connected ? "is-online" : "is-offline"} ${player.ready ? "is-ready" : "is-not-ready"} ${player.isOwner ? "is-owner" : ""} ${player.isWinner ? "is-winner" : ""} ${isMe ? "is-me" : ""} ${teamId ? teamClass(teamId) : ""}"
+          aria-label="${escapeHtml(`${player.username} · ${statusText}${canToggleReady ? " · tap to toggle ready" : ""}`)}"
           data-player-id="${escapeHtml(player.id)}"
           data-is-me="${isMe ? "true" : "false"}"
           data-team-id="${escapeHtml(teamId)}"
           data-team-index="${teamIndex}"
           data-team-count="${teamCounts.get(teamKey) || 1}"
           data-team-side="${side}"
-          ${isMe ? 'role="button" tabindex="0"' : ""}
+          ${canToggleReady ? 'role="button" tabindex="0"' : ""}
           style="${teamId ? `--team-color:${escapeHtml(player.teamColor || "#4b7dff")}` : ""}"
         >
           <span class="lobby-attendant-avatar">
             ${player.isOwner ? crownMarkup() : ""}
-            ${animalAvatarMarkup(player.username)}
+            ${player.isWinner ? trophyMarkup() : ""}
+            ${animalAvatarMarkup(player.username, { ring: false })}
             <span class="lobby-ready-state" aria-label="${player.ready ? "Ready" : "Not ready"}">${readyStatusIconMarkup(player.ready)}</span>
             <span class="lobby-attendant-score" aria-label="${escapeHtml(`${signedScore(player.score)} points`)}">${escapeHtml(signedScore(player.score))}</span>
           </span>
@@ -2715,10 +2738,24 @@ function attendantInitialMotion(playerId, index, bounds, width, height) {
     width,
     height,
     radius: Math.max(width, height) / 2,
+    seed,
+    gridSlotKey: "",
+    tiltDirection: seed % 2 === 0 ? 1 : -1,
+    tiltPhase: ((seed >> 2) % 628) / 100,
+    tiltSpeed: 0.72 + ((seed >> 4) % 72) / 100,
     targetXRatio: 0.18 + ((seed >> 3) % 64) / 100,
     targetYRatio: 0.16 + ((seed >> 5) % 68) / 100,
     zoneKey: bounds.key || "all"
   };
+}
+
+function shouldUseLobbyAttendantGrid(count) {
+  return count >= lobbyAttendantGridThreshold;
+}
+
+function attendantRotationDegrees(item, now) {
+  const time = now / 1000;
+  return Math.sin(time * item.tiltSpeed + item.tiltPhase) * lobbyAttendantTiltDegrees * item.tiltDirection;
 }
 
 function keepAttendantInBounds(item, bounds) {
@@ -2835,6 +2872,68 @@ function bounceAttendants(first, second) {
   second.vy = firstNormal * ny + secondTangent * tangentY;
 }
 
+function attendantGridColumnCount(count, zone, maxWidth) {
+  const targetCellWidth = Math.max(maxWidth + lobbyAttendantGridGap, 68);
+  return Math.max(1, Math.min(count, Math.floor(zone.width / targetCellWidth) || 1));
+}
+
+function attendantGridSlot(zone, count, slotIndex, maxWidth) {
+  const columns = attendantGridColumnCount(count, zone, maxWidth);
+  const rows = Math.max(1, Math.ceil(count / columns));
+  const column = slotIndex % columns;
+  const row = Math.floor(slotIndex / columns);
+  const cellWidth = zone.width / columns;
+  const cellHeight = zone.height / rows;
+  return {
+    key: `${zone.key}:${slotIndex}:${columns}:${rows}`,
+    x: zone.x + column * cellWidth,
+    y: zone.y + row * cellHeight,
+    width: cellWidth,
+    height: cellHeight
+  };
+}
+
+function guideAttendantTowardGridSlot(item, slot, now, dt) {
+  const time = now / 1000;
+  const phase = ((item.seed || 1) % 628) / 100;
+  const slackX = Math.max(0, slot.width - item.width - lobbyAttendantGridGap);
+  const slackY = Math.max(0, slot.height - item.height - lobbyAttendantGridGap);
+  const driftX = Math.min(lobbyAttendantGridDrift, slackX / 2);
+  const driftY = Math.min(lobbyAttendantGridDrift, slackY / 2);
+  const targetX = slot.x + (slot.width - item.width) / 2 + Math.cos(time * 0.9 + phase) * driftX;
+  const targetY = slot.y + (slot.height - item.height) / 2 + Math.sin(time * 1.1 + phase * 0.7) * driftY;
+
+  if (!item.gridSlotKey || item.gridSlotKey !== slot.key) {
+    item.x = targetX;
+    item.y = targetY;
+  } else {
+    const ease = Math.min(1, Math.max(0.18, dt * lobbyAttendantGridEase));
+    item.x += (targetX - item.x) * ease;
+    item.y += (targetY - item.y) * ease;
+  }
+  item.gridSlotKey = slot.key;
+  item.vx = 0;
+  item.vy = 0;
+}
+
+function positionAttendantsInGrid(items, now, dt) {
+  const groups = new Map();
+  for (const entry of items) {
+    const key = entry.zone.key || "all";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(entry);
+  }
+
+  for (const group of groups.values()) {
+    const count = group.length;
+    const maxWidth = Math.max(...group.map(({ item }) => item.width));
+    group.forEach((entry, slotIndex) => {
+      const slot = attendantGridSlot(entry.zone, count, slotIndex, maxWidth);
+      guideAttendantTowardGridSlot(entry.item, slot, now, dt);
+    });
+  }
+}
+
 function startLobbyAttendantMotion() {
   const arena = document.querySelector("#lobbyAttendantArena");
   if (!arena) {
@@ -2845,6 +2944,7 @@ function startLobbyAttendantMotion() {
   stopLobbyAttendantMotion();
   const nodes = Array.from(arena.querySelectorAll(".lobby-attendant-token"));
   const teamUpEnabled = arena.dataset.teamUp === "true";
+  const gridLayoutEnabled = arena.dataset.gridLayout === "true";
   const activeIds = new Set(nodes.map((node) => node.dataset.playerId || ""));
   for (const playerId of Array.from(lobbyAttendantMotion.players.keys())) {
     if (!activeIds.has(playerId)) lobbyAttendantMotion.players.delete(playerId);
@@ -2884,38 +2984,46 @@ function startLobbyAttendantMotion() {
         item.targetYRatio = Math.min(0.94, Math.max(0.06, (teamIndex + 0.5) / teamCount));
         item.targetXRatio = teamIndex % 2 === 0 ? 0.18 : 0.78;
       }
-      guideAttendantTowardZone(item, zone, dt);
-      item.x += item.vx * dt;
-      item.y += item.vy * dt;
-      keepAttendantInBounds(item, zone.key === "all" || attendantIsInsideZone(item, zone) ? zone : bounds);
+      if (!gridLayoutEnabled) {
+        item.gridSlotKey = "";
+        guideAttendantTowardZone(item, zone, dt);
+        item.x += item.vx * dt;
+        item.y += item.vy * dt;
+        keepAttendantInBounds(item, zone.key === "all" || attendantIsInsideZone(item, zone) ? zone : bounds);
+      }
       return { node, item, zone };
     });
 
-    for (let i = 0; i < items.length; i += 1) {
-      for (let j = i + 1; j < items.length; j += 1) {
-        if (teamUpEnabled && items[i].zone.key !== items[j].zone.key) continue;
-        if (
-          teamUpEnabled &&
-          (!attendantIsInsideZone(items[i].item, items[i].zone) ||
-            !attendantIsInsideZone(items[j].item, items[j].zone))
-        ) {
-          continue;
+    if (gridLayoutEnabled) {
+      positionAttendantsInGrid(items, now, dt);
+    } else {
+      for (let i = 0; i < items.length; i += 1) {
+        for (let j = i + 1; j < items.length; j += 1) {
+          if (teamUpEnabled && items[i].zone.key !== items[j].zone.key) continue;
+          if (
+            teamUpEnabled &&
+            (!attendantIsInsideZone(items[i].item, items[i].zone) ||
+              !attendantIsInsideZone(items[j].item, items[j].zone))
+          ) {
+            continue;
+          }
+          bounceAttendants(items[i].item, items[j].item);
+          keepAttendantInBounds(
+            items[i].item,
+            items[i].zone.key === "all" || attendantIsInsideZone(items[i].item, items[i].zone) ? items[i].zone : bounds
+          );
+          keepAttendantInBounds(
+            items[j].item,
+            items[j].zone.key === "all" || attendantIsInsideZone(items[j].item, items[j].zone) ? items[j].zone : bounds
+          );
         }
-        bounceAttendants(items[i].item, items[j].item);
-        keepAttendantInBounds(
-          items[i].item,
-          items[i].zone.key === "all" || attendantIsInsideZone(items[i].item, items[i].zone) ? items[i].zone : bounds
-        );
-        keepAttendantInBounds(
-          items[j].item,
-          items[j].zone.key === "all" || attendantIsInsideZone(items[j].item, items[j].zone) ? items[j].zone : bounds
-        );
       }
     }
 
     for (const { node, item, zone } of items) {
       keepAttendantInBounds(item, zone.key === "all" || attendantIsInsideZone(item, zone) ? zone : bounds);
-      node.style.transform = `translate3d(${item.x}px, ${item.y}px, 0)`;
+      const rotation = attendantRotationDegrees(item, now).toFixed(2);
+      node.style.transform = `translate3d(${item.x}px, ${item.y}px, 0) rotate(${rotation}deg)`;
     }
 
     lobbyAttendantMotion.rafId = requestAnimationFrame(animate);
@@ -3400,9 +3508,12 @@ function renderLobby() {
   const game = state.game;
   const me = game.me;
   const isOwner = me?.id === game.ownerPlayerId;
+  const isEnded = game.status === "ended";
   const cameraReady = Boolean(cameraState.stream);
   const cameraMessage = cameraState.error || (cameraReady ? "Camera ready" : "Camera permission needed");
   const gameOptionsDisabled = !isOwner || game.status !== "lobby";
+  const readyToggleEnabled = game.status === "lobby";
+  const gridLayoutEnabled = shouldUseLobbyAttendantGrid(game.players.length);
   const redTeam = (game.teams || []).find((team) => team.id === "red") || game.teams?.[0];
   const blueTeam = (game.teams || []).find((team) => team.id === "blue") || game.teams?.[1];
   const attendantArenaStyle = [
@@ -3414,6 +3525,12 @@ function renderLobby() {
     .join(";");
   const languageLabel = challengeLanguageLabel(game.challengeLanguage);
   const languageCode = challengeLanguageCodeLabel(game.challengeLanguage);
+  const winnerName = game.winner?.username || game.winner?.name || "";
+  const lobbyStatusRow = game.status === "loading"
+    ? `<div class="lobby-status-row"><span class="status-chip">loading objects</span></div>`
+    : isEnded
+      ? `<div class="lobby-status-row"><span class="status-chip">game complete</span>${winnerName ? `<span>${escapeHtml(`${winnerName} wins.`)}</span>` : ""}</div>`
+      : "";
   const languageControl = isOwner
     ? `
       <label class="lobby-language-control" title="Change game language">
@@ -3456,7 +3573,7 @@ function renderLobby() {
               <h1>Lobby</h1>
               <p>Share this card with players nearby.</p>
             </div>
-            ${game.status === "loading" ? `<div class="lobby-status-row"><span class="status-chip">loading objects</span></div>` : ""}
+            ${lobbyStatusRow}
           </div>
           <section class="join-reference-card" aria-label="Game joining information">
             <div class="join-reference-body">
@@ -3511,32 +3628,52 @@ function renderLobby() {
             </div>
           </div>
           <div
-            class="lobby-attendant-arena ${game.teamUpEnabled ? "is-team-up" : ""}"
+            class="lobby-attendant-arena ${game.teamUpEnabled ? "is-team-up" : ""} ${gridLayoutEnabled ? "is-grid-layout" : ""}"
             id="lobbyAttendantArena"
             data-team-up="${game.teamUpEnabled ? "true" : "false"}"
+            data-grid-layout="${gridLayoutEnabled ? "true" : "false"}"
             style="${attendantArenaStyle}"
             aria-label="Game attendants"
           >
             ${game.teamUpEnabled ? lobbyAttendantTeamLabels(game.teams || []) : ""}
-            ${lobbyAttendantTokens(game.players, me?.id)}
+            ${lobbyAttendantTokens(game.players, me?.id, { readyToggleEnabled })}
           </div>
           <div class="lobby-arena-action-bar">
             <div class="lobby-ready-copy">
-              <strong>${me?.ready ? "You are ready" : "You are not ready"}</strong>
-              <span>Tap your avatar to switch.</span>
+              ${
+                isEnded
+                  ? `
+                    <strong>Game complete</strong>
+                    <span>${winnerName ? escapeHtml(`${winnerName} won. `) : ""}Points are shown on avatars.</span>
+                  `
+                  : `
+                    <strong>${me?.ready ? "You are ready" : "You are not ready"}</strong>
+                    <span>Tap your avatar to switch.</span>
+                  `
+              }
             </div>
             <div class="lobby-arena-actions">
-              <span class="lobby-camera-chip ${cameraReady ? "is-ready" : "is-needed"}">${escapeHtml(cameraMessage)}</span>
-              ${cameraReady ? "" : `<button class="secondary-button lobby-small-action" id="enableCameraButton" type="button">Enable camera</button>`}
               ${
-                isOwner
-                  ? `<button class="primary-button lobby-small-action" id="startButton" type="button" ${!game.allReady || game.status === "loading" ? "disabled" : ""}>Start game</button>`
-                  : ""
-              }
-              ${
-                isOwner
-                  ? `<button class="danger-button lobby-small-action" id="endGameButton" type="button">End game</button>`
-                  : `<button class="secondary-button lobby-small-action" id="leaveGameButton" type="button">Leave game</button>`
+                isEnded
+                  ? `
+                    <span class="lobby-camera-chip is-ready">Final scores</span>
+                    ${isOwner ? `<button class="primary-button lobby-small-action" id="restartButton" type="button">New game with group</button>` : ""}
+                    <button class="secondary-button lobby-small-action" id="leaveGameButton" type="button">Leave game</button>
+                  `
+                  : `
+                    <span class="lobby-camera-chip ${cameraReady ? "is-ready" : "is-needed"}">${escapeHtml(cameraMessage)}</span>
+                    ${cameraReady ? "" : `<button class="secondary-button lobby-small-action" id="enableCameraButton" type="button">Enable camera</button>`}
+                    ${
+                      isOwner
+                        ? `<button class="primary-button lobby-small-action" id="startButton" type="button" ${!game.allReady || game.status === "loading" ? "disabled" : ""}>Start game</button>`
+                        : ""
+                    }
+                    ${
+                      isOwner
+                        ? `<button class="danger-button lobby-small-action" id="endGameButton" type="button">End game</button>`
+                        : `<button class="secondary-button lobby-small-action" id="leaveGameButton" type="button">Leave game</button>`
+                    }
+                  `
               }
             </div>
           </div>
@@ -3585,12 +3722,14 @@ function renderLobby() {
   });
   if (lobbyGuideDialog && !lobbyGuideDialog.open) lobbyGuideDialog.showModal();
   const meToken = document.querySelector(".lobby-attendant-token.is-me");
-  meToken?.addEventListener("click", () => setReady(!me.ready));
-  meToken?.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
-    setReady(!me.ready);
-  });
+  if (readyToggleEnabled) {
+    meToken?.addEventListener("click", () => setReady(!me.ready));
+    meToken?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      setReady(!me.ready);
+    });
+  }
   document.querySelector("#enableCameraButton")?.addEventListener("click", enableCamera);
   document.querySelector("#copyUrlButton").addEventListener("click", async () => {
     try {
@@ -3603,6 +3742,7 @@ function renderLobby() {
   document.querySelector("#startButton")?.addEventListener("click", startGame);
   document.querySelector("#endGameButton")?.addEventListener("click", openGameMenu);
   document.querySelector("#leaveGameButton")?.addEventListener("click", openGameMenu);
+  document.querySelector("#restartButton")?.addEventListener("click", restartGame);
 }
 
 function ensureGameShell() {

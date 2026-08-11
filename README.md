@@ -63,7 +63,7 @@ Every setting can be supplied in `config.js`; these environment variables can ov
 | `POSTGRES_SSL` | Enable Postgres SSL with `1`, `true`, `yes`, or `on`. |
 | `OPENROUTER_API_KEY` | OpenRouter key. |
 | `OPENROUTER_MODEL` | Object generation model. Default: `openai/gpt-5.4-mini`. |
-| `OPENROUTER_VISION_MODEL` | Photo verification model. Default: `google/gemini-3.1-flash-lite-preview`. |
+| `OPENROUTER_VISION_MODEL` | Photo verification model. Default: `google/gemini-3.5-flash-lite`. |
 | `OPENROUTER_TTS_MODEL` | Pronunciation audio model. Default: `google/gemini-3.1-flash-tts-preview`. |
 | `OPENROUTER_TTS_VOICE` | TTS voice name. |
 | `OPENROUTER_TTS_RESPONSE_FORMAT` | TTS response format. |

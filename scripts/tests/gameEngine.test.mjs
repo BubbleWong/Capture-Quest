@@ -433,17 +433,19 @@ test("edits lobby names and game options before the game starts", async () => {
   assert.equal(game.teams.length, 2);
   assert.match(ownerPlayer.teamId, /^(red|blue)$/);
   assert.match(joined.player.teamId, /^(red|blue)$/);
-  assert.equal(ownerPlayer.ready, false);
-  assert.equal(joined.player.ready, false);
+  assert.equal(ownerPlayer.ready, true);
+  assert.equal(joined.player.ready, true);
   assert.equal(owner.last("game_state").challengeLanguage, "fr");
   assert.equal(owner.last("game_state").initialChallengeInput, "shoe, bag");
   assert.equal(playerSocket.last("game_state").initialChallengeInput, undefined);
 
+  const explicitlyUnready = engine.setReady(playerSocket, { gameId: game.id, ready: false });
+  assert.equal(explicitlyUnready.error, undefined);
+  assert.equal(joined.player.ready, false);
   const blockedStart = await engine.startGame(owner, { gameId: game.id });
   assert.match(blockedStart.error, /Every player must be ready/);
+  engine.setReady(playerSocket, { gameId: game.id, ready: true });
 
-  ownerPlayer.ready = true;
-  joined.player.ready = true;
   const teamOff = engine.updateGameOptions(owner, {
     gameId: game.id,
     challengeLanguage: "fr",
@@ -772,6 +774,27 @@ test("team-up skip votes count only after every connected player on a team votes
   assert.equal(game.lastResult.status, "skipped");
 });
 
+test("marks the individual winner in ended game snapshots", async () => {
+  const { engine, io } = createEngine({
+    config: gameConfig({ normalRounds: 1, nextRoundDelayMs: 10 }),
+    items: ["shoe"],
+    verifyPhoto: async () => ({ match: true, confidence: 0.95, reason: "matched" })
+  });
+  const owner = io.createSocket("owner");
+  const player = io.createSocket("player");
+  const { game } = engine.createGame(owner, { username: "Host", clientId: clientIds.owner });
+  const joined = engine.joinGame(player, { gameId: game.id, username: "Runner", clientId: clientIds.playerA });
+
+  await startReadyGame(engine, owner, game, [player]);
+  assert.equal(engine.submitCapture(owner, { gameId: game.id, challengeId: game.currentRound.id, imageDataUrl: tinyImage }).ok, true);
+  await waitFor(() => game.status === "ended", "individual game end");
+
+  const finalState = engine.getSnapshot(game, game.ownerPlayerId);
+  assert.equal(finalState.winner.id, game.ownerPlayerId);
+  assert.equal(finalState.players.find((snapshotPlayer) => snapshotPlayer.id === game.ownerPlayerId).isWinner, true);
+  assert.equal(finalState.players.find((snapshotPlayer) => snapshotPlayer.id === joined.player.id).isWinner, false);
+});
+
 test("balances team-up mode and ends with team leaderboard data", async () => {
   let verificationCalls = 0;
   const { engine, io, database } = createEngine({
@@ -811,6 +834,9 @@ test("balances team-up mode and ends with team leaderboard data", async () => {
   await waitFor(() => game.status === "ended", "team game end");
 
   assert.equal(game.winner.id, winningTeamId);
+  const finalState = engine.getSnapshot(game, game.ownerPlayerId);
+  assert.equal(finalState.players.find((player) => player.id === game.ownerPlayerId).isWinner, true);
+  assert.equal(finalState.players.find((player) => player.id === joinedA.player.id).isWinner, false);
   assert.equal(database.results.length, 1);
   assert.equal(database.results[0].teams.length, 2);
   assert.equal(database.results[0].winner.id, winningTeamId);
@@ -855,6 +881,7 @@ test("supports owner pause/resume/end and restart with the same group", async ()
   await engine.endGameByOwner(owner, { gameId: game.id });
   assert.equal(game.status, "ended");
   assert.equal(game.winner, null);
+  assert.deepEqual(engine.getSnapshot(game, game.ownerPlayerId).players.map((player) => player.isWinner), [false, false]);
 
   const playerLeave = engine.leaveGame(player, { gameId: game.id });
   assert.equal(playerLeave.left, true);
@@ -866,5 +893,5 @@ test("supports owner pause/resume/end and restart with the same group", async ()
   assert.equal(game.roundNumber, 0);
   assert.equal(game.players.size, 1);
   assert.equal(playerByName(game, "Host").score, 0);
-  assert.equal(playerByName(game, "Host").ready, false);
+  assert.equal(playerByName(game, "Host").ready, true);
 });

@@ -976,8 +976,8 @@ button:disabled {
   border-radius: 8px;
   box-shadow: var(--shadow);
   color: var(--ink);
-  gap: 12px;
-  max-height: calc(100dvh - 32px);
+  height: fit-content;
+  max-height: min(640px, calc(100dvh - 32px));
   max-width: 620px;
   overflow: auto;
   padding: clamp(14px, 3vw, 22px);
@@ -985,7 +985,7 @@ button:disabled {
 }
 
 .lobby-guide-dialog[open] {
-  display: grid;
+  display: block;
 }
 
 .lobby-guide-dialog::backdrop {
@@ -998,6 +998,7 @@ button:disabled {
   display: flex;
   gap: 12px;
   justify-content: space-between;
+  margin-bottom: 12px;
 }
 
 .lobby-guide-head h3,
@@ -1020,6 +1021,23 @@ button:disabled {
   flex: 0 0 auto;
   height: 34px;
   width: 34px;
+}
+
+.lobby-guide-form {
+  align-content: start;
+  display: grid;
+  gap: 12px;
+}
+
+.lobby-guide-form .word-list-input {
+  height: clamp(132px, 22dvh, 180px);
+  max-height: 220px;
+  min-height: 120px;
+}
+
+.lobby-guide-form .secondary-button {
+  height: auto;
+  min-height: 46px;
 }
 
 .lobby-guide-preview {
@@ -1054,6 +1072,14 @@ button:disabled {
     ),
     #f8fbff;
   height: clamp(460px, calc(340px + var(--attendant-count, 1) * 16px), 900px);
+}
+
+.lobby-attendant-arena.is-grid-layout {
+  height: clamp(420px, calc(300px + var(--attendant-count, 1) * 16px), 1120px);
+}
+
+.lobby-attendant-arena.is-team-up.is-grid-layout {
+  height: clamp(520px, calc(400px + var(--attendant-count, 1) * 15px), 1180px);
 }
 
 .lobby-attendant-arena.is-team-up::before {
@@ -1111,6 +1137,7 @@ button:disabled {
   padding: 3px;
   position: absolute;
   top: 0;
+  transform-origin: 50% 56%;
   will-change: transform;
   z-index: 2;
 }
@@ -1144,10 +1171,10 @@ button:disabled {
   box-shadow: 0 4px 0 rgba(23, 32, 51, 0.14);
 }
 
-.lobby-owner-crown {
+.lobby-owner-crown,
+.lobby-winner-trophy {
   fill: var(--yellow);
   filter: drop-shadow(0 2px 0 rgba(23, 32, 51, 0.26));
-  height: 20px;
   left: 50%;
   overflow: visible;
   position: absolute;
@@ -1155,10 +1182,31 @@ button:disabled {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 3px;
+  z-index: 2;
+}
+
+.lobby-owner-crown {
+  height: 20px;
   top: -16px;
   transform: translateX(-50%) rotate(-4deg);
   width: 26px;
-  z-index: 2;
+}
+
+.lobby-winner-trophy {
+  height: 21px;
+  top: -17px;
+  transform: translateX(-50%) rotate(5deg);
+  width: 24px;
+}
+
+.lobby-attendant-token.is-owner.is-winner .lobby-owner-crown {
+  left: calc(50% - 12px);
+  transform: translateX(-50%) rotate(-8deg);
+}
+
+.lobby-attendant-token.is-owner.is-winner .lobby-winner-trophy {
+  left: calc(50% + 12px);
+  transform: translateX(-50%) rotate(8deg);
 }
 
 .lobby-attendant-avatar .animal-avatar {
@@ -1188,7 +1236,7 @@ button:disabled {
   word-break: break-word;
 }
 
-.lobby-attendant-token.is-owner .lobby-attendant-name {
+.lobby-attendant-token.is-me .lobby-attendant-name {
   background: var(--yellow);
   border-color: var(--ink);
 }
@@ -1244,6 +1292,59 @@ button:disabled {
 .lobby-attendant-token.is-team-red .lobby-attendant-score,
 .lobby-attendant-token.is-team-blue .lobby-attendant-score {
   border-color: var(--team-color);
+}
+
+.lobby-attendant-arena.is-grid-layout .lobby-attendant-token {
+  min-width: 54px;
+  padding: 2px;
+}
+
+.lobby-attendant-arena.is-grid-layout .lobby-owner-crown {
+  height: 17px;
+  top: -13px;
+  width: 22px;
+}
+
+.lobby-attendant-arena.is-grid-layout .lobby-winner-trophy {
+  height: 18px;
+  top: -14px;
+  width: 20px;
+}
+
+.lobby-attendant-arena.is-grid-layout .lobby-attendant-token.is-owner.is-winner .lobby-owner-crown {
+  left: calc(50% - 10px);
+}
+
+.lobby-attendant-arena.is-grid-layout .lobby-attendant-token.is-owner.is-winner .lobby-winner-trophy {
+  left: calc(50% + 10px);
+}
+
+.lobby-attendant-arena.is-grid-layout .lobby-attendant-avatar .animal-avatar {
+  height: 34px;
+  width: 34px;
+}
+
+.lobby-attendant-arena.is-grid-layout .lobby-attendant-name {
+  font-size: 0.58rem;
+  max-width: 72px;
+  min-height: 22px;
+  padding: 3px 5px;
+}
+
+.lobby-attendant-arena.is-grid-layout .lobby-ready-state {
+  height: 18px;
+  width: 18px;
+}
+
+.lobby-attendant-arena.is-grid-layout .lobby-ready-icon {
+  height: 14px;
+  width: 14px;
+}
+
+.lobby-attendant-arena.is-grid-layout .lobby-attendant-score {
+  font-size: 0.58rem;
+  min-width: 22px;
+  padding: 4px 5px;
 }
 
 .lobby-arena-action-bar {
@@ -1391,9 +1492,9 @@ button:disabled {
 .player-avatar {
   align-items: center;
   display: inline-flex;
-  height: 34px;
+  min-height: 34px;
   justify-content: center;
-  width: 34px;
+  min-width: 34px;
 }
 
 .animal-avatar {
@@ -1401,6 +1502,26 @@ button:disabled {
   flex: 0 0 auto;
   height: 34px;
   width: 34px;
+}
+
+.animal-avatar-wrap {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.animal-avatar-ring {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.88);
+  border: 2px solid var(--avatar-ring-color, var(--ink));
+  border-radius: 999px;
+  box-shadow: 0 4px 0 rgba(23, 32, 51, 0.14);
+  justify-content: center;
+  padding: 2px;
+}
+
+.team-score-row .animal-avatar-ring,
+.team-contributor-row .animal-avatar-ring {
+  --avatar-ring-color: var(--team-color, var(--ink));
 }
 
 .animal-avatar.is-compact {
@@ -2013,8 +2134,11 @@ body.is-game-active .main-stage {
 
 .game-score-pill .animal-avatar {
   height: 24px;
-  margin-left: -4px;
   width: 24px;
+}
+
+.game-score-pill .animal-avatar-ring {
+  margin-left: -4px;
 }
 
 .game-score-pill.is-me {
@@ -2466,9 +2590,13 @@ body.is-game-active .main-stage {
   }
 
   .lobby-guide-dialog {
-    max-height: calc(100dvh - 20px);
+    max-height: min(620px, calc(100dvh - 20px));
     padding: 12px;
     width: calc(100% - 20px);
+  }
+
+  .lobby-guide-form .word-list-input {
+    height: clamp(124px, 24dvh, 168px);
   }
 
   .lobby-attendant-arena {
@@ -2479,6 +2607,14 @@ body.is-game-active .main-stage {
     height: clamp(500px, calc(380px + var(--attendant-count, 1) * 18px), 980px);
   }
 
+  .lobby-attendant-arena.is-grid-layout {
+    height: clamp(520px, calc(360px + var(--attendant-count, 1) * 14px), 1120px);
+  }
+
+  .lobby-attendant-arena.is-team-up.is-grid-layout {
+    height: clamp(620px, calc(420px + var(--attendant-count, 1) * 16px), 1280px);
+  }
+
   .lobby-attendant-token {
     min-width: 56px;
   }
@@ -2487,6 +2623,20 @@ body.is-game-active .main-stage {
     height: 17px;
     top: -14px;
     width: 22px;
+  }
+
+  .lobby-winner-trophy {
+    height: 18px;
+    top: -15px;
+    width: 20px;
+  }
+
+  .lobby-attendant-token.is-owner.is-winner .lobby-owner-crown {
+    left: calc(50% - 10px);
+  }
+
+  .lobby-attendant-token.is-owner.is-winner .lobby-winner-trophy {
+    left: calc(50% + 10px);
   }
 
   .lobby-attendant-avatar .animal-avatar {
@@ -2519,6 +2669,61 @@ body.is-game-active .main-stage {
     min-width: 22px;
     padding: 4px 5px;
     right: -8px;
+  }
+
+  .lobby-attendant-arena.is-grid-layout .lobby-attendant-token {
+    min-width: 48px;
+    padding: 1px;
+  }
+
+  .lobby-attendant-arena.is-grid-layout .lobby-owner-crown {
+    height: 15px;
+    top: -12px;
+    width: 19px;
+  }
+
+  .lobby-attendant-arena.is-grid-layout .lobby-winner-trophy {
+    height: 16px;
+    top: -13px;
+    width: 18px;
+  }
+
+  .lobby-attendant-arena.is-grid-layout .lobby-attendant-token.is-owner.is-winner .lobby-owner-crown {
+    left: calc(50% - 9px);
+  }
+
+  .lobby-attendant-arena.is-grid-layout .lobby-attendant-token.is-owner.is-winner .lobby-winner-trophy {
+    left: calc(50% + 9px);
+  }
+
+  .lobby-attendant-arena.is-grid-layout .lobby-attendant-avatar .animal-avatar {
+    height: 30px;
+    width: 30px;
+  }
+
+  .lobby-attendant-arena.is-grid-layout .lobby-attendant-name {
+    font-size: 0.5rem;
+    max-width: 64px;
+    min-height: 20px;
+    padding: 2px 4px;
+  }
+
+  .lobby-attendant-arena.is-grid-layout .lobby-ready-state {
+    height: 16px;
+    left: -5px;
+    width: 16px;
+  }
+
+  .lobby-attendant-arena.is-grid-layout .lobby-ready-icon {
+    height: 12px;
+    width: 12px;
+  }
+
+  .lobby-attendant-arena.is-grid-layout .lobby-attendant-score {
+    font-size: 0.52rem;
+    min-width: 20px;
+    padding: 3px 4px;
+    right: -7px;
   }
 
   .lobby-arena-action-bar {

@@ -226,6 +226,11 @@ function challengeKey(item) {
 
 function publicPlayer(player, game = null) {
   const team = teamForPlayer(game, player);
+  const winner = game?.winner || null;
+  const isWinner =
+    game?.status === "ended" &&
+    Boolean(winner) &&
+    (game.teamUpEnabled ? winner.id === team?.id : winner.id === player.id);
   return {
     id: player.id,
     username: player.username,
@@ -234,6 +239,7 @@ function publicPlayer(player, game = null) {
     penalties: player.penalties || 0,
     ready: player.ready,
     isOwner: player.isOwner,
+    isWinner,
     connected: player.connected,
     teamId: team?.id || null,
     teamName: team?.name || "",
@@ -538,10 +544,7 @@ export class GameEngine {
       this.assignBalancedTeams(game);
     }
     if (challengeSettingsChanged) {
-      for (const currentPlayer of game.players.values()) {
-        currentPlayer.ready = false;
-      }
-      this.emitNotice(game, "Game options updated. Ready up when you are set.");
+      this.emitNotice(game, "Game options updated.");
     } else if (teamModeChanged) {
       this.emitNotice(game, `Team-up mode turned ${nextTeamUpEnabled ? "on" : "off"}.`);
     }
@@ -583,7 +586,6 @@ export class GameEngine {
       currentPlayer.score = 0;
       currentPlayer.pointsFound = 0;
       currentPlayer.penalties = 0;
-      currentPlayer.ready = false;
     }
     game.status = "lobby";
     game.roundNumber = 0;

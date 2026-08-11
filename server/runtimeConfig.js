@@ -26,7 +26,7 @@ const defaults = {
   openRouter: {
     apiKey: "",
     model: "openai/gpt-5.4-mini",
-    visionModel: "google/gemini-3.1-flash-lite-preview",
+    visionModel: "google/gemini-3.5-flash-lite",
     ttsModel: "google/gemini-3.1-flash-tts-preview",
     ttsVoice: "Kore",
     ttsResponseFormat: "pcm",
