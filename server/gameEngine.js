@@ -228,7 +228,7 @@ function publicPlayer(player, game = null) {
   const team = teamForPlayer(game, player);
   const winner = game?.winner || null;
   const isWinner =
-    game?.status === "ended" &&
+    game?.lastResult?.status === "ended" &&
     Boolean(winner) &&
     (game.teamUpEnabled ? winner.id === team?.id : winner.id === player.id);
   return {
@@ -316,6 +316,14 @@ function topTeams(game) {
   const sorted = activeTeamScores(game).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
   const topScore = sorted[0]?.score ?? 0;
   return sorted.filter((team) => team.score === topScore);
+}
+
+function hasCompletedResult(game) {
+  return game?.lastResult?.status === "ended";
+}
+
+function winnerDisplayName(winner) {
+  return winner?.username || winner?.name || "";
 }
 
 function connectedPlayers(game) {
@@ -543,6 +551,9 @@ export class GameEngine {
     } else if (nextTeamUpEnabled && [...game.players.values()].some((currentPlayer) => !currentPlayer.teamId)) {
       this.assignBalancedTeams(game);
     }
+    if (hasCompletedResult(game) && teamModeChanged) {
+      this.refreshCompletedLobbyWinner(game);
+    }
     if (challengeSettingsChanged) {
       this.emitNotice(game, "Game options updated.");
     } else if (teamModeChanged) {
@@ -550,6 +561,44 @@ export class GameEngine {
     }
     this.emitState(game);
     return { game, player };
+  }
+
+  resetCompletedLobbyForStart(game) {
+    if (!hasCompletedResult(game)) return;
+    this.clearTimers(game);
+    for (const currentPlayer of game.players.values()) {
+      currentPlayer.score = 0;
+      currentPlayer.pointsFound = 0;
+      currentPlayer.penalties = 0;
+    }
+    game.roundNumber = 0;
+    game.roundsAwarded = 0;
+    game.currentRound = null;
+    game.submissionQueue = [];
+    game.submissionQueueEpoch += 1;
+    game.lastResult = null;
+    game.winner = null;
+    game.nextRoundAt = null;
+    game.nextRoundStartedAt = null;
+    game.pauseState = null;
+    game.endedAt = null;
+    game.startedAt = null;
+    game.itemQueue = [];
+    game.initialChallengePrepared = false;
+  }
+
+  refreshCompletedLobbyWinner(game) {
+    if (!hasCompletedResult(game)) return;
+    const leaders = game.teamUpEnabled ? topTeams(game) : topPlayers([...game.players.values()]);
+    game.winner = leaders.length === 1 ? leaders[0] : null;
+    const winnerName = winnerDisplayName(game.winner);
+    game.lastResult = {
+      ...game.lastResult,
+      status: "ended",
+      item: null,
+      username: winnerName,
+      message: winnerName ? `${winnerName} wins.` : "Game ended without a winner."
+    };
   }
 
   async startGame(socket, payload = {}) {
@@ -560,6 +609,7 @@ export class GameEngine {
     if (game.status !== "lobby") return { error: "The game is not in the lobby." };
     if (!this.allPlayersReady(game)) return { error: "Every player must be ready before the game can start." };
 
+    this.resetCompletedLobbyForStart(game);
     if (!game.teamUpEnabled || [...game.players.values()].some((currentPlayer) => !currentPlayer.teamId)) {
       this.assignBalancedTeams(game);
     }
@@ -707,11 +757,13 @@ export class GameEngine {
     const session = this.getSession(socket, payload.gameId);
     if (!session) return { error: "You are not in this game." };
     const { game, player } = session;
-    if (game.ownerPlayerId === player.id && game.status !== "ended") {
+    const ownerLeaving = game.ownerPlayerId === player.id;
+    if (ownerLeaving && game.status !== "lobby" && game.status !== "ended") {
       return { error: "The owner must end the game instead." };
     }
 
     game.players.delete(player.id);
+    player.isOwner = false;
     this.socketSessions.delete(socket.id);
     socket.leave(game.id);
 
@@ -724,6 +776,14 @@ export class GameEngine {
       this.clearTimers(game);
       this.games.delete(game.id);
     } else {
+      if (ownerLeaving) {
+        const nextOwner =
+          [...game.players.values()].find((candidate) => candidate.connected) || [...game.players.values()][0];
+        game.ownerPlayerId = nextOwner.id;
+        for (const currentPlayer of game.players.values()) {
+          currentPlayer.isOwner = currentPlayer.id === nextOwner.id;
+        }
+      }
       this.emitNotice(game, `${player.username} left the game.`);
       this.emitState(game);
     }
@@ -1380,7 +1440,7 @@ export class GameEngine {
 
   async endGame(game, options = {}) {
     this.clearTimers(game);
-    game.status = "ended";
+    game.status = "lobby";
     game.endedAt = Date.now();
     game.currentRound = null;
     game.submissionQueue = [];

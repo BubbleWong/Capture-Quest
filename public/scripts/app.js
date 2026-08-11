@@ -1656,11 +1656,14 @@ function renderGameMenu() {
   }
 
   const isOwner = state.game.me?.id === state.game.ownerPlayerId;
+  const isLobby = state.game.status === "lobby";
   const isPaused = state.game.status === "paused";
   const isEnded = state.game.status === "ended";
   const canPause = state.game.status === "running";
   const summary = isEnded
     ? "Exit this completed game and return to the start screen."
+    : isLobby
+      ? "Leave this lobby and return to the start screen."
     : isOwner
     ? isPaused
       ? "The game is paused for everyone."
@@ -1681,14 +1684,14 @@ function renderGameMenu() {
         ${soundState.bgmMuted ? "Unmute BGM" : "Mute BGM"}
       </button>
       ${
-        isEnded
-          ? `<button class="danger-button" id="confirmLeaveGameButton" type="button">Exit game</button>`
+        isEnded || isLobby
+          ? `<button class="danger-button" id="confirmLeaveGameButton" type="button">Leave game</button>`
           : isOwner
           ? `
             ${ownerPauseControl}
             <button class="danger-button" id="confirmEndGameButton" type="button">End game</button>
           `
-          : `<button class="danger-button" id="confirmLeaveGameButton" type="button">Exit game</button>`
+          : `<button class="danger-button" id="confirmLeaveGameButton" type="button">Leave game</button>`
       }
       <button class="secondary-button" id="cancelGameMenuButton" type="button">Cancel</button>
     </div>
@@ -2632,8 +2635,8 @@ function readyStatusIconMarkup(ready) {
 function crownMarkup() {
   return `
     <svg class="lobby-owner-crown" viewBox="0 0 32 24" aria-hidden="true" focusable="false">
-      <path d="M3 8l7 5 6-10 6 10 7-5-3 13H6L3 8z"></path>
-      <path d="M7 21h18"></path>
+      <path class="lobby-honor-fill" d="M3 8l7 5 6-10 6 10 7-5-3 13H6L3 8z"></path>
+      <path class="lobby-honor-line" d="M7 21h18"></path>
     </svg>
   `;
 }
@@ -2641,11 +2644,11 @@ function crownMarkup() {
 function trophyMarkup() {
   return `
     <svg class="lobby-winner-trophy" viewBox="0 0 32 30" aria-hidden="true" focusable="false">
-      <path d="M10 5h12v7.5c0 4-2.5 7.5-6 7.5s-6-3.5-6-7.5V5z"></path>
-      <path d="M10 8H5.5v2.2c0 3.7 2.3 5.8 6.1 6.1"></path>
-      <path d="M22 8h4.5v2.2c0 3.7-2.3 5.8-6.1 6.1"></path>
-      <path d="M16 20v4"></path>
-      <path d="M11 26h10"></path>
+      <path class="lobby-honor-fill" d="M10 5h12v7.5c0 4-2.5 7.5-6 7.5s-6-3.5-6-7.5V5z"></path>
+      <path class="lobby-honor-line" d="M10 8H5.5v2.2c0 3.7 2.3 5.8 6.1 6.1"></path>
+      <path class="lobby-honor-line" d="M22 8h4.5v2.2c0 3.7-2.3 5.8-6.1 6.1"></path>
+      <path class="lobby-honor-line" d="M16 20v4"></path>
+      <path class="lobby-honor-line" d="M11 26h10"></path>
     </svg>
   `;
 }
@@ -2687,6 +2690,7 @@ function lobbyAttendantTokens(players = [], viewerPlayerId = "", { readyToggleEn
       const side = teamId === "blue" ? "right" : "left";
       const isMe = player.id === viewerPlayerId;
       const canToggleReady = isMe && readyToggleEnabled;
+      const honors = [player.isOwner ? crownMarkup() : "", player.isWinner ? trophyMarkup() : ""].filter(Boolean).join("");
       return `
         <div
           class="lobby-attendant-token ${player.connected ? "is-online" : "is-offline"} ${player.ready ? "is-ready" : "is-not-ready"} ${player.isOwner ? "is-owner" : ""} ${player.isWinner ? "is-winner" : ""} ${isMe ? "is-me" : ""} ${teamId ? teamClass(teamId) : ""}"
@@ -2701,8 +2705,7 @@ function lobbyAttendantTokens(players = [], viewerPlayerId = "", { readyToggleEn
           style="${teamId ? `--team-color:${escapeHtml(player.teamColor || "#4b7dff")}` : ""}"
         >
           <span class="lobby-attendant-avatar">
-            ${player.isOwner ? crownMarkup() : ""}
-            ${player.isWinner ? trophyMarkup() : ""}
+            ${honors ? `<span class="lobby-avatar-honors">${honors}</span>` : ""}
             ${animalAvatarMarkup(player.username, { ring: false })}
             <span class="lobby-ready-state" aria-label="${player.ready ? "Ready" : "Not ready"}">${readyStatusIconMarkup(player.ready)}</span>
             <span class="lobby-attendant-score" aria-label="${escapeHtml(`${signedScore(player.score)} points`)}">${escapeHtml(signedScore(player.score))}</span>
@@ -3526,10 +3529,10 @@ function renderLobby() {
   const languageLabel = challengeLanguageLabel(game.challengeLanguage);
   const languageCode = challengeLanguageCodeLabel(game.challengeLanguage);
   const winnerName = game.winner?.username || game.winner?.name || "";
+  const winnerMessage = winnerName ? `The winner is ${winnerName}` : "The game ended without a winner.";
+  const hasCompletedResult = game.lastResult?.status === "ended";
   const lobbyStatusRow = game.status === "loading"
     ? `<div class="lobby-status-row"><span class="status-chip">loading objects</span></div>`
-    : isEnded
-      ? `<div class="lobby-status-row"><span class="status-chip">game complete</span>${winnerName ? `<span>${escapeHtml(`${winnerName} wins.`)}</span>` : ""}</div>`
       : "";
   const languageControl = isOwner
     ? `
@@ -3641,10 +3644,10 @@ function renderLobby() {
           <div class="lobby-arena-action-bar">
             <div class="lobby-ready-copy">
               ${
-                isEnded
+                hasCompletedResult || isEnded
                   ? `
                     <strong>Game complete</strong>
-                    <span>${winnerName ? escapeHtml(`${winnerName} won. `) : ""}Points are shown on avatars.</span>
+                    <span>${escapeHtml(winnerMessage)}</span>
                   `
                   : `
                     <strong>${me?.ready ? "You are ready" : "You are not ready"}</strong>
@@ -3657,7 +3660,6 @@ function renderLobby() {
                 isEnded
                   ? `
                     <span class="lobby-camera-chip is-ready">Final scores</span>
-                    ${isOwner ? `<button class="primary-button lobby-small-action" id="restartButton" type="button">New game with group</button>` : ""}
                     <button class="secondary-button lobby-small-action" id="leaveGameButton" type="button">Leave game</button>
                   `
                   : `
@@ -3668,11 +3670,7 @@ function renderLobby() {
                         ? `<button class="primary-button lobby-small-action" id="startButton" type="button" ${!game.allReady || game.status === "loading" ? "disabled" : ""}>Start game</button>`
                         : ""
                     }
-                    ${
-                      isOwner
-                        ? `<button class="danger-button lobby-small-action" id="endGameButton" type="button">End game</button>`
-                        : `<button class="secondary-button lobby-small-action" id="leaveGameButton" type="button">Leave game</button>`
-                    }
+                    <button class="secondary-button lobby-small-action" id="leaveGameButton" type="button">Leave game</button>
                   `
               }
             </div>
@@ -3883,7 +3881,6 @@ function renderEnd() {
           <span class="status-chip">${game.winner ? "winner" : "ended"}</span>
           <h1>${escapeHtml(winnerName)}</h1>
         </div>
-        ${isOwner ? `<button class="primary-button" id="restartButton" type="button">New game with group</button>` : ""}
         <button class="secondary-button" id="leaveGameButton" type="button">Leave game</button>
       </div>
       <aside class="compact-panel stack">
@@ -3893,7 +3890,6 @@ function renderEnd() {
     </section>
   `;
 
-  document.querySelector("#restartButton")?.addEventListener("click", restartGame);
   document.querySelector("#leaveGameButton").addEventListener("click", openGameMenu);
 }
 

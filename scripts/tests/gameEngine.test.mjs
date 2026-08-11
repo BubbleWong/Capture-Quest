@@ -777,7 +777,7 @@ test("team-up skip votes count only after every connected player on a team votes
 test("marks the individual winner in ended game snapshots", async () => {
   const { engine, io } = createEngine({
     config: gameConfig({ normalRounds: 1, nextRoundDelayMs: 10 }),
-    items: ["shoe"],
+    items: ["shoe", "book"],
     verifyPhoto: async () => ({ match: true, confidence: 0.95, reason: "matched" })
   });
   const owner = io.createSocket("owner");
@@ -787,12 +787,82 @@ test("marks the individual winner in ended game snapshots", async () => {
 
   await startReadyGame(engine, owner, game, [player]);
   assert.equal(engine.submitCapture(owner, { gameId: game.id, challengeId: game.currentRound.id, imageDataUrl: tinyImage }).ok, true);
-  await waitFor(() => game.status === "ended", "individual game end");
+  await waitFor(() => game.status === "lobby" && game.lastResult?.status === "ended", "individual game completion lobby");
 
   const finalState = engine.getSnapshot(game, game.ownerPlayerId);
+  assert.equal(finalState.status, "lobby");
   assert.equal(finalState.winner.id, game.ownerPlayerId);
   assert.equal(finalState.players.find((snapshotPlayer) => snapshotPlayer.id === game.ownerPlayerId).isWinner, true);
   assert.equal(finalState.players.find((snapshotPlayer) => snapshotPlayer.id === joined.player.id).isWinner, false);
+  assert.equal(finalState.players.find((snapshotPlayer) => snapshotPlayer.id === game.ownerPlayerId).score, 1);
+
+  const startedAgain = await engine.startGame(owner, { gameId: game.id });
+  assert.equal(startedAgain.error, undefined);
+  await waitFor(() => game.status === "running" && game.currentRound?.status === "active", "second game active round");
+  assert.equal(game.winner, null);
+  assert.equal(game.lastResult, null);
+  assert.equal(game.roundsAwarded, 0);
+  assert.equal(game.players.get(game.ownerPlayerId).score, 0);
+  assert.equal(joined.player.score, 0);
+});
+
+test("recalculates completed lobby trophies when team-up mode changes", () => {
+  const { engine, io } = createEngine();
+  const owner = io.createSocket("owner");
+  const playerA = io.createSocket("player-a");
+  const playerB = io.createSocket("player-b");
+  const { game } = engine.createGame(owner, { username: "Host", clientId: clientIds.owner });
+  engine.joinGame(playerA, { gameId: game.id, username: "Runner", clientId: clientIds.playerA });
+  engine.joinGame(playerB, { gameId: game.id, username: "Buddy", clientId: clientIds.playerB });
+
+  const host = playerByName(game, "Host");
+  playerByName(game, "Runner").score = 1;
+  playerByName(game, "Buddy").score = -2;
+  host.score = 5;
+  game.winner = host;
+  game.lastResult = {
+    status: "ended",
+    item: null,
+    username: "Host",
+    message: "Host wins."
+  };
+
+  const teamOn = engine.updateGameOptions(owner, {
+    gameId: game.id,
+    challengeLanguage: game.challengeLanguage,
+    initialChallengeInput: game.initialChallengeInput,
+    teamUpEnabled: true
+  });
+  assert.equal(teamOn.error, undefined);
+  assert.equal(game.winner.id, host.teamId);
+  assert.equal(game.lastResult.username, game.winner.name);
+
+  const teamSnapshot = engine.getSnapshot(game, game.ownerPlayerId);
+  assert.equal(teamSnapshot.winner.id, host.teamId);
+  for (const player of teamSnapshot.players) {
+    assert.equal(player.isWinner, player.teamId === host.teamId);
+  }
+
+  const teamOff = engine.updateGameOptions(owner, {
+    gameId: game.id,
+    challengeLanguage: game.challengeLanguage,
+    initialChallengeInput: game.initialChallengeInput,
+    teamUpEnabled: false
+  });
+  assert.equal(teamOff.error, undefined);
+  assert.equal(game.winner.id, host.id);
+  assert.equal(game.lastResult.username, "Host");
+
+  const individualSnapshot = engine.getSnapshot(game, game.ownerPlayerId);
+  assert.equal(individualSnapshot.winner.id, host.id);
+  assert.deepEqual(
+    individualSnapshot.players.map((player) => [player.username, player.isWinner]).sort(),
+    [
+      ["Buddy", false],
+      ["Host", true],
+      ["Runner", false]
+    ]
+  );
 });
 
 test("balances team-up mode and ends with team leaderboard data", async () => {
@@ -809,20 +879,19 @@ test("balances team-up mode and ends with team leaderboard data", async () => {
   });
   const owner = io.createSocket("owner");
   const playerA = io.createSocket("player-a");
+  const playerB = io.createSocket("player-b");
   const { game } = engine.createGame(owner, {
     username: "Host",
     clientId: clientIds.owner,
     teamUpEnabled: true
   });
   const joinedA = engine.joinGame(playerA, { gameId: game.id, username: "Runner", clientId: clientIds.playerA });
+  const joinedB = engine.joinGame(playerB, { gameId: game.id, username: "Cheer Buddy", clientId: clientIds.playerB });
 
-  await startReadyGame(engine, owner, game, [playerA]);
-  const teamCounts = new Map();
-  for (const player of game.players.values()) {
-    teamCounts.set(player.teamId, (teamCounts.get(player.teamId) || 0) + 1);
-  }
-  assert.equal(teamCounts.size, 2);
-  assert.equal(Math.abs([...teamCounts.values()][0] - [...teamCounts.values()][1]) <= 1, true);
+  await startReadyGame(engine, owner, game, [playerA, playerB]);
+  game.players.get(game.ownerPlayerId).teamId = "red";
+  joinedB.player.teamId = "red";
+  joinedA.player.teamId = "blue";
 
   const winningTeamId = game.players.get(game.ownerPlayerId).teamId;
   assert.notEqual(joinedA.player.teamId, winningTeamId);
@@ -831,12 +900,22 @@ test("balances team-up mode and ends with team leaderboard data", async () => {
   assert.equal(joinedA.player.score, -1);
 
   assert.equal(engine.submitCapture(owner, { gameId: game.id, challengeId: game.currentRound.id, imageDataUrl: tinyImage }).ok, true);
-  await waitFor(() => game.status === "ended", "team game end");
+  await waitFor(() => game.status === "lobby" && game.lastResult?.status === "ended", "team game completion lobby");
 
   assert.equal(game.winner.id, winningTeamId);
   const finalState = engine.getSnapshot(game, game.ownerPlayerId);
-  assert.equal(finalState.players.find((player) => player.id === game.ownerPlayerId).isWinner, true);
-  assert.equal(finalState.players.find((player) => player.id === joinedA.player.id).isWinner, false);
+  assert.equal(finalState.status, "lobby");
+  assert.deepEqual(
+    finalState.players
+      .filter((player) => player.teamId === winningTeamId)
+      .map((player) => [player.username, player.isWinner])
+      .sort(),
+    [
+      ["Cheer Buddy", true],
+      ["Host", true]
+    ]
+  );
+  assert.equal(finalState.players.find((player) => player.teamId !== winningTeamId).isWinner, false);
   assert.equal(database.results.length, 1);
   assert.equal(database.results[0].teams.length, 2);
   assert.equal(database.results[0].winner.id, winningTeamId);
@@ -846,10 +925,38 @@ test("balances team-up mode and ends with team leaderboard data", async () => {
   assert.deepEqual(winningTeam.contributors.map((player) => [player.username, player.score, player.pointsFound, player.penalties]), [
     ["Host", 1, 1, 0]
   ]);
+  assert.equal(winningTeam.players, 2);
   assert.equal(losingTeam.score, -1);
   assert.deepEqual(losingTeam.contributors.map((player) => [player.username, player.score, player.pointsFound, player.penalties]), [
     ["Runner", -1, 0, 1]
   ]);
+});
+
+test("allows the owner to leave a lobby and transfers ownership", () => {
+  const { engine, io } = createEngine();
+  const owner = io.createSocket("owner");
+  const player = io.createSocket("player");
+  const soloOwner = io.createSocket("solo-owner");
+  const { game, player: ownerPlayer } = engine.createGame(owner, {
+    username: "Host",
+    clientId: clientIds.owner
+  });
+  const joined = engine.joinGame(player, { gameId: game.id, username: "Player", clientId: clientIds.playerA });
+
+  const ownerLeave = engine.leaveGame(owner, { gameId: game.id });
+  const playerState = player.last("game_state");
+
+  assert.equal(ownerLeave.left, true);
+  assert.equal(game.players.has(ownerPlayer.id), false);
+  assert.equal(game.ownerPlayerId, joined.player.id);
+  assert.equal(joined.player.isOwner, true);
+  assert.equal(playerState.ownerPlayerId, joined.player.id);
+  assert.equal(playerState.me.isOwner, true);
+
+  const { game: soloGame } = engine.createGame(soloOwner, { username: "Solo", clientId: clientIds.playerB });
+  const soloLeave = engine.leaveGame(soloOwner, { gameId: soloGame.id });
+  assert.equal(soloLeave.left, true);
+  assert.equal(engine.games.has(soloGame.id), false);
 });
 
 test("supports owner pause/resume/end and restart with the same group", async () => {
@@ -879,19 +986,23 @@ test("supports owner pause/resume/end and restart with the same group", async ()
   assert.match(ownerLeave.error, /owner must end/);
 
   await engine.endGameByOwner(owner, { gameId: game.id });
-  assert.equal(game.status, "ended");
+  assert.equal(game.status, "lobby");
   assert.equal(game.winner, null);
   assert.deepEqual(engine.getSnapshot(game, game.ownerPlayerId).players.map((player) => player.isWinner), [false, false]);
+
+  const startedAgain = await engine.startGame(owner, { gameId: game.id });
+  assert.equal(startedAgain.error, undefined);
+  await waitFor(() => game.status === "running" && game.currentRound?.status === "active", "new game after owner end");
+  assert.equal(game.roundNumber, 1);
+  assert.equal(game.roundsAwarded, 0);
+  assert.equal(game.players.size, 2);
+  assert.equal(playerByName(game, "Host").score, 0);
+  assert.equal(playerByName(game, "Host").ready, true);
+  assert.equal(playerByName(game, "Player").score, 0);
+  assert.equal(game.lastResult, null);
+  assert.equal(game.winner, null);
 
   const playerLeave = engine.leaveGame(player, { gameId: game.id });
   assert.equal(playerLeave.left, true);
   assert.equal(game.players.has(joined.player.id), false);
-
-  const restarted = await engine.restartGame(owner, { gameId: game.id });
-  assert.equal(restarted.error, undefined);
-  assert.equal(game.status, "lobby");
-  assert.equal(game.roundNumber, 0);
-  assert.equal(game.players.size, 1);
-  assert.equal(playerByName(game, "Host").score, 0);
-  assert.equal(playerByName(game, "Host").ready, true);
 });
