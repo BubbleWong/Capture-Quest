@@ -1,6 +1,6 @@
 # Capture Quest
 
-<img width="381" height="640" alt="IMAGE 2026-06-07 14:31:04" src="https://github.com/user-attachments/assets/b44a1cac-91cb-4347-b287-c84349a00d23" />
+<img width="1389" height="970" alt="Screenshot 2026-08-12 at 10 45 03 PM" src="https://github.com/user-attachments/assets/8b450a77-d6c6-442f-934f-efbc020fbc9a" />
 
 Capture Quest is a realtime camera scavenger hunt PWA for homes, classrooms, parties, and small groups. One player creates a game, shares a QR code or Game ID, and up to 50 players race to photograph safe everyday objects before the clock runs out.
 
