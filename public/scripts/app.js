@@ -1144,6 +1144,11 @@ function focusNameInput(input) {
 }
 
 function handleNameShake(event) {
+  if (state.view === "game") {
+    blurActiveEditableElement();
+    return;
+  }
+
   const input = currentRandomNameInput();
   if (!input) return;
 
@@ -1202,6 +1207,29 @@ function setupRandomNamePicker(inputName) {
     startNameShakeListener({ requestPermission: true });
   });
   startNameShakeListener({ requestPermission: false });
+}
+
+function isEditableElement(element) {
+  return Boolean(
+    element &&
+      (element instanceof HTMLInputElement ||
+        element instanceof HTMLTextAreaElement ||
+        element.isContentEditable)
+  );
+}
+
+function blurActiveEditableElement() {
+  const activeElement = document.activeElement;
+  if (isEditableElement(activeElement)) activeElement.blur();
+}
+
+function closeTextEntryDialogs() {
+  blurActiveEditableElement();
+  if (playerNameDialog?.open) playerNameDialog.close();
+  const lobbyGuideDialog = document.querySelector("#lobbyGuideDialog");
+  if (lobbyGuideDialog?.open && typeof lobbyGuideDialog.close === "function") {
+    lobbyGuideDialog.close();
+  }
 }
 
 function isUuid(value) {
@@ -3898,7 +3926,9 @@ function render() {
   state.timerInterval = null;
 
   const previousView = state.lastRenderedView;
-  state.view = activeViewFromGame(state.game) || state.view;
+  const nextView = activeViewFromGame(state.game) || state.view;
+  if (nextView === "game") closeTextEntryDialogs();
+  state.view = nextView;
   renderConnectionPill();
   document.body.classList.toggle("is-game-active", state.view === "game");
   if (state.view === "home") renderHome();
@@ -4007,6 +4037,7 @@ async function voteSkipRound() {
 }
 
 function closePlayerNameDialog() {
+  blurActiveEditableElement();
   playerNameDialog.close();
 }
 
