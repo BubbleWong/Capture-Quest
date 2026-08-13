@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { io } from "socket.io-client";
 
-const baseUrl = process.env.TEST_BASE_URL || "http://localhost:3001";
+const baseUrl = process.env.TEST_BASE_URL || "http://localhost:3000";
 const tinyPng =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
 
@@ -105,6 +105,9 @@ try {
 
   const ready = await emitAck(socket, "set_ready", { gameId: created.gameId, ready: true });
   assert.equal(ready.ok, true);
+
+  const rejoinedUnready = await emitAck(rejoinedPlayerSocket, "set_ready", { gameId: created.gameId, ready: false });
+  assert.equal(rejoinedUnready.ok, true);
 
   const blockedStart = await emitAck(socket, "start_game", { gameId: created.gameId });
   assert.equal(blockedStart.ok, false);

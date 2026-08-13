@@ -710,7 +710,40 @@ test("skips the current object when more than half of players vote skip", async 
   assert.equal(game.currentRound.item, "book");
 });
 
-test("team-up skip votes count only after every connected player on a team votes", async () => {
+test("does not lower skip threshold when a player is reconnecting", async () => {
+  const { engine, io } = createEngine({
+    config: gameConfig({ nextRoundDelayMs: 10 }),
+    items: ["shoe", "book"],
+    verifyPhoto: async () => ({ match: true, confidence: 0.9, reason: "matched" })
+  });
+  const owner = io.createSocket("owner");
+  const player = io.createSocket("player");
+  const rejoinedPlayer = io.createSocket("player-rejoined");
+  const { game } = engine.createGame(owner, { username: "Host", clientId: clientIds.owner });
+  engine.joinGame(player, { gameId: game.id, username: "Player", clientId: clientIds.playerA });
+  await startReadyGame(engine, owner, game, [player]);
+
+  const firstRoundId = game.currentRound.id;
+  engine.handleDisconnect(player);
+  const firstSkip = engine.voteSkipRound(owner, { gameId: game.id, challengeId: firstRoundId });
+  assert.equal(firstSkip.error, undefined);
+  assert.equal(firstSkip.skip.votes, 1);
+  assert.equal(firstSkip.skip.threshold, 2);
+  assert.equal(firstSkip.skip.passed, false);
+  assert.equal(game.currentRound.status, "active");
+
+  const rejoin = engine.rejoinGame(rejoinedPlayer, {
+    gameId: game.id,
+    username: "Player",
+    clientId: clientIds.playerA
+  });
+  assert.equal(rejoin.error, undefined);
+  const secondSkip = engine.voteSkipRound(rejoinedPlayer, { gameId: game.id, challengeId: firstRoundId });
+  assert.equal(secondSkip.skip.passed, true);
+  assert.equal(game.currentRound.status, "skipped");
+});
+
+test("team-up skip votes count only after every player on a team votes", async () => {
   const { engine, io } = createEngine({
     config: gameConfig({ nextRoundDelayMs: 10 }),
     items: ["shoe", "book", "pencil"],
@@ -795,6 +828,14 @@ test("marks the individual winner in ended game snapshots", async () => {
   assert.equal(finalState.players.find((snapshotPlayer) => snapshotPlayer.id === game.ownerPlayerId).isWinner, true);
   assert.equal(finalState.players.find((snapshotPlayer) => snapshotPlayer.id === joined.player.id).isWinner, false);
   assert.equal(finalState.players.find((snapshotPlayer) => snapshotPlayer.id === game.ownerPlayerId).score, 1);
+
+  const restarted = await engine.restartGame(owner, { gameId: game.id });
+  assert.equal(restarted.error, undefined);
+  assert.equal(game.status, "lobby");
+  assert.equal(game.lastResult, null);
+  assert.equal(game.winner, null);
+  assert.equal(game.players.get(game.ownerPlayerId).score, 0);
+  assert.equal(joined.player.score, 0);
 
   const startedAgain = await engine.startGame(owner, { gameId: game.id });
   assert.equal(startedAgain.error, undefined);

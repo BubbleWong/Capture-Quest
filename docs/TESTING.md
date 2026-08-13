@@ -30,6 +30,7 @@ Current coverage includes:
 - Per-game verification queue ordering.
 - Miss penalties, solved-challenge drops, and no penalty for late submissions after a winner.
 - Non-repeating challenge history and AI refill exclusion hints.
+- Strict skip-majority thresholds that do not drop during reconnects.
 - Team-up balancing, team winners, and team result persistence.
 - Owner pause, resume, end, player leave, and restart-with-group behavior.
 

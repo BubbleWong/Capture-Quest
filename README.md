@@ -101,7 +101,7 @@ npm run ci
 - `npm run check` validates JavaScript syntax for server, client, service worker, smoke tests, and engine tests.
 - `npm test` runs deterministic game-logic tests with Node's built-in test runner.
 - `npm run ci` runs syntax checks and deterministic engine tests.
-- `npm run smoke` runs an optional live Socket.IO smoke test against `TEST_BASE_URL` or `http://localhost:3001`.
+- `npm run smoke` runs an optional live Socket.IO smoke test against `TEST_BASE_URL` or `http://localhost:3000`.
 
 More detail is in [docs/TESTING.md](docs/TESTING.md).
 

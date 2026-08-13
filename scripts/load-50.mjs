@@ -48,7 +48,7 @@ function waitFor(predicate, label, timeoutMs = 15000) {
           resolve(result);
         } else if (performance.now() - startedAt > timeoutMs) {
           clearInterval(timer);
-          reject(new Error(`Timed out waiting for ${label}.`));
+          reject(new Error(`Timed out waiting for ${label} (seed=${seed}).`));
         }
       } catch (error) {
         clearInterval(timer);
@@ -379,14 +379,14 @@ try {
   assert.ok(targetTeamId);
 
   const handledRounds = new Set();
-  while (clients[0].latestState?.status !== "ended") {
+  while (clients[0].latestState?.lastResult?.status !== "ended") {
     const state = await waitFor(() => {
       const next = clients[0].latestState;
-      if (next?.status === "ended") return next;
+      if (next?.lastResult?.status === "ended") return next;
       if (next?.currentRound?.status === "active" && !handledRounds.has(next.currentRound.id)) return next;
       return null;
     }, "next active round");
-    if (state.status === "ended") break;
+    if (state.lastResult?.status === "ended") break;
 
     const round = state.currentRound;
     handledRounds.add(round.id);
@@ -426,14 +426,20 @@ try {
 
     await waitFor(
       () =>
-        clients[0].latestState?.status === "ended" ||
+        clients[0].latestState?.lastResult?.status === "ended" ||
         clients[0].latestState?.lastResult?.status === "found" ||
         clients[0].latestState?.currentRound?.id !== round.id,
       "round resolution"
     );
   }
 
-  const finalState = await waitFor(() => clients[0].latestState?.status === "ended" && clients[0].latestState, "game ended");
+  const finalState = await waitFor(
+    () => {
+      const next = clients[0].latestState;
+      return next?.status === "lobby" && next.lastResult?.status === "ended" && next;
+    },
+    "game ended"
+  );
   assert.equal(finalState.players.length, playerCount);
   assert.equal(finalState.teamUpEnabled, true);
   assert.equal(finalState.teamScores.reduce((total, team) => total + team.players, 0), playerCount);

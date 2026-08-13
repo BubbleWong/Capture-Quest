@@ -326,8 +326,8 @@ function winnerDisplayName(winner) {
   return winner?.username || winner?.name || "";
 }
 
-function connectedPlayers(game) {
-  return [...(game?.players?.values?.() || [])].filter((player) => player.connected);
+function currentPlayers(game) {
+  return [...(game?.players?.values?.() || [])];
 }
 
 function skipVoteSummary(game, round) {
@@ -344,7 +344,7 @@ function skipVoteSummary(game, round) {
   }
 
   if (!game.teamUpEnabled) {
-    const eligiblePlayers = connectedPlayers(game);
+    const eligiblePlayers = currentPlayers(game);
     const voteCount = eligiblePlayers.filter((player) => votes.has(player.id)).length;
     const threshold = Math.floor(eligiblePlayers.length / 2) + 1;
     return {
@@ -357,14 +357,14 @@ function skipVoteSummary(game, round) {
     };
   }
 
-  const connectedByTeam = new Map();
-  for (const player of connectedPlayers(game)) {
+  const eligibleByTeam = new Map();
+  for (const player of currentPlayers(game)) {
     if (!player.teamId) continue;
-    if (!connectedByTeam.has(player.teamId)) connectedByTeam.set(player.teamId, []);
-    connectedByTeam.get(player.teamId).push(player);
+    if (!eligibleByTeam.has(player.teamId)) eligibleByTeam.set(player.teamId, []);
+    eligibleByTeam.get(player.teamId).push(player);
   }
 
-  const eligibleTeams = [...connectedByTeam.entries()];
+  const eligibleTeams = [...eligibleByTeam.entries()];
   const completedTeamIds = eligibleTeams
     .filter(([, players]) => players.length > 0 && players.every((player) => votes.has(player.id)))
     .map(([teamId]) => teamId);
@@ -629,30 +629,10 @@ export class GameEngine {
     if (!session) return { error: "You are not in this game." };
     const { game, player } = session;
     if (game.ownerPlayerId !== player.id) return { error: "Only the game owner can start a new game." };
-    if (game.status !== "ended") return { error: "The current game has not ended yet." };
+    if (!hasCompletedResult(game) && game.status !== "ended") return { error: "The current game has not ended yet." };
 
-    this.clearTimers(game);
-    for (const currentPlayer of game.players.values()) {
-      currentPlayer.score = 0;
-      currentPlayer.pointsFound = 0;
-      currentPlayer.penalties = 0;
-    }
+    this.resetCompletedLobbyForStart(game);
     game.status = "lobby";
-    game.roundNumber = 0;
-    game.roundsAwarded = 0;
-    game.currentRound = null;
-    game.submissionQueue = [];
-    game.submissionQueueEpoch += 1;
-    game.lastResult = null;
-    game.winner = null;
-    game.nextRoundAt = null;
-    game.nextRoundStartedAt = null;
-    game.pauseState = null;
-    game.endedAt = null;
-    game.startedAt = null;
-    game.itemQueue = [];
-    game.initialChallengeInput = "";
-    game.initialChallengePrepared = true;
     if (game.teamUpEnabled) {
       this.assignBalancedTeams(game);
     } else {
