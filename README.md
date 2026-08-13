@@ -4,23 +4,25 @@
 
 Capture Quest is a realtime camera scavenger hunt PWA for homes, classrooms, parties, and small groups. One player creates a game, shares a QR code or Game ID, and up to 50 players race to photograph safe everyday objects before the clock runs out.
 
-The app runs on a Node.js backend with Socket.IO, a modern browser frontend, optional Postgres result storage, OpenRouter-powered object generation and image verification, and optional S3-backed pronunciation audio.
+The app runs on a Node.js backend with Socket.IO, a modern browser frontend, optional Postgres result storage, OpenRouter-powered object generation, image verification, pronunciation TTS, and optional S3-backed pronunciation audio caching.
 
 ## Features
 
 - One-click game creation, plus join by QR code, URL, or Crockford Base32 Game ID.
-- Lobby game options for player names, challenge language, optional object guide, and team-up mode before start.
-- Phone/tablet camera gameplay with client-side image downscaling before upload.
+- Avatar-based lobby with random funny animal names, local name persistence, shake-to-randomize, and tap-to-ready controls.
+- Owner lobby controls for challenge language, optional object or AI guide, and team-up mode before start.
+- Phone/tablet camera gameplay with client-side image downscaling before upload, flashlight support where browsers allow it, and secure-context HTTPS tunnel support for mobile testing.
 - Owner controls for start, pause, end, and restart with the same group.
-- Player ready checks, reconnect support, local player UUIDs, and one online session per player.
-- AI-generated object rounds with optional owner-provided word list or prompt guide.
-- Language-aware challenges, language tags, and optional pronunciation audio.
+- Players auto-ready when joining; owner start is gated until every player is ready.
+- Reconnect support, local player UUIDs, and one online session per player.
+- AI-generated object rounds with optional owner-provided word list or prompt guide that AI refines for safety and camera recognition.
+- Language-aware challenges, language tags, and optional pronunciation audio buttons.
 - Image verification accepts recognizable real objects, photos, drawings, stickers, or icons of the target.
 - Sequential verification queues per game so only one photo is verified at a time in each game.
 - Miss penalties only for active, unsolved challenges; stale or already-solved submissions are ignored.
-- Optional team-up mode with red/blue team balancing and team scoreboards.
+- Skip voting for hard-to-find objects with strict majority thresholds; team mode requires full-team skip votes from a majority of teams.
+- Optional team-up mode with red/blue team balancing, team scoreboards, and final contributor breakdowns.
 - Lobby, in-game, and countdown music with per-user BGM mute stored in local storage.
-- Development HTTPS tunnel support for camera testing on iOS and Android.
 
 Game IDs use Crockford Base32. Player-entered codes accept lowercase letters, hyphens or spaces, `O` as `0`, and `I`/`L` as `1`.
 
@@ -96,12 +98,14 @@ Pronunciation audio is generated before an object is announced when S3 and TTS a
 npm run check
 npm test
 npm run ci
+npm run load:50
 ```
 
 - `npm run check` validates JavaScript syntax for server, client, service worker, smoke tests, and engine tests.
 - `npm test` runs deterministic game-logic tests with Node's built-in test runner.
 - `npm run ci` runs syntax checks and deterministic engine tests.
 - `npm run smoke` runs an optional live Socket.IO smoke test against `TEST_BASE_URL` or `http://localhost:3000`.
+- `npm run load:50` runs an isolated randomized 50-player Socket.IO load test with fake AI/audio/storage.
 
 More detail is in [docs/TESTING.md](docs/TESTING.md).
 
