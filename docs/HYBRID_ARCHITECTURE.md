@@ -18,6 +18,7 @@ Supply secrets in the existing private `config.js`, an owner-readable environmen
 | `CAPTURE_QUEST_WORKER_CONCURRENCY` | Concurrent task slots, default 2, maximum 4. Each slot has a distinct lease-owner ID. |
 | `CAPTURE_QUEST_POLL_INTERVAL_MS` | Idle claim interval, default 3 seconds. |
 | `POSTGRES_NODES`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DATABASE` | Existing PostgreSQL connection. |
+| `POSTGRES_SSL_SERVERNAME` | Certificate DNS identity when the connection uses a private IP; hostname verification remains enabled. |
 | `POSTGRES_SSL`, `POSTGRES_SSL_CA` | Enable certificate and hostname validation with an optional trusted CA PEM. |
 | `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `OPENROUTER_VISION_MODEL` | Existing model credentials and selection. |
 | `OPENROUTER_TIMEOUT_MS` | Provider request deadline, capped at 45 seconds. |

@@ -23,6 +23,7 @@ const defaults = {
     database: "",
     ssl: false,
     sslCa: "",
+    sslServerName: "",
     migrateOnStart: false
   },
   openRouter: {
@@ -119,6 +120,7 @@ function applyEnv(config) {
       database: process.env.POSTGRES_DATABASE || config.postgres.database,
       ssl: boolFromEnv(process.env.POSTGRES_SSL, config.postgres.ssl),
       sslCa: process.env.POSTGRES_SSL_CA || config.postgres.sslCa,
+      sslServerName: process.env.POSTGRES_SSL_SERVERNAME || config.postgres.sslServerName,
       migrateOnStart: boolFromEnv(
         process.env.POSTGRES_MIGRATE_ON_START, config.postgres.migrateOnStart
       )

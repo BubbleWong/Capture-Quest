@@ -62,7 +62,8 @@ export async function createDatabase(config, logger = console, {
     database: postgres.database || postgres.user,
     ssl: postgres.ssl ? {
       rejectUnauthorized: true,
-      ...(postgres.sslCa ? { ca: postgres.sslCa } : {})
+      ...(postgres.sslCa ? { ca: postgres.sslCa } : {}),
+      ...(postgres.sslServerName ? { servername: postgres.sslServerName } : {})
     } : false,
     max: 4,
     connectionTimeoutMillis: 3000,

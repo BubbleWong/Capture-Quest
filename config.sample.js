@@ -17,6 +17,7 @@ export default {
     database: "capture_quest",
     ssl: false,
     sslCa: "",
+    sslServerName: "",
     migrateOnStart: false
   },
   openRouter: {

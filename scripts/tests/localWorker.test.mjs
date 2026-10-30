@@ -174,12 +174,14 @@ test('runtime database validates TLS, avoids DDL and deduplicates completion', a
     }, release() {}
   };
   const db = await createDatabase({ mode: 'production', postgres: {
-    nodes: 'database.local:5432', user: 'worker', ssl: true, sslCa: 'trusted-ca'
+    nodes: 'database.local:5432', user: 'worker', ssl: true, sslCa: 'trusted-ca',
+    sslServerName: 'verified-database.example'
   } }, quiet, { poolFactory(value) { options = value; return {
     query: client.query, async connect() { return client; }, async end() {}
   }; } });
   assert.equal(options.ssl.rejectUnauthorized, true);
   assert.equal(options.ssl.ca, 'trusted-ca');
+  assert.equal(options.ssl.servername, 'verified-database.example');
   const result = { gameId: 'ABC123', resultId: 'ABC123:run-1',
     roundsPlayed: 1, players: [{ id: 'player', username: 'Player', score: 1 }] };
   await db.saveGameResult(result);
