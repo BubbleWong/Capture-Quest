@@ -1,3 +1,5 @@
+import { createGameTransport } from "./transport.js";
+
 const app = document.querySelector("#app");
 const connectionPill = document.querySelector("#connectionPill");
 const leaderboardDialog = document.querySelector("#leaderboardDialog");
@@ -12,7 +14,7 @@ const playerNameDialogContent = document.querySelector("#playerNameDialogContent
 const closePlayerNameDialogButton = document.querySelector("#closePlayerNameDialogButton");
 const globalToastStack = document.querySelector("#globalToastStack");
 
-const socket = io();
+const socket = createGameTransport();
 const query = new URLSearchParams(window.location.search);
 const initialGameId = query.get("game")?.toUpperCase() || "";
 const isAvatarReview = query.get("avatars") === "1";
@@ -256,6 +258,7 @@ const state = {
   gameUrl: "",
   qrCode: "",
   playerId: "",
+  resumeToken: "",
   notice: "",
   online: socket.connected,
   notifications: [],
@@ -714,15 +717,21 @@ function preventDoubleTapZoom(event) {
 preventDoubleTapZoom.lastTouchEnd = 0;
 
 function saveSession() {
-  if (!state.game?.id || !state.playerId) return;
-  localStorage.setItem(
-    sessionKey,
-    JSON.stringify({
-      gameId: state.game.id,
-      playerId: state.playerId,
-      clientId: readClientId()
-    })
-  );
+  const gameId = state.prefillGameId || state.game?.id;
+  if (!gameId || !state.playerId || !state.resumeToken) return;
+  try {
+    localStorage.setItem(
+      sessionKey,
+      JSON.stringify({
+        gameId,
+        playerId: state.playerId,
+        resumeToken: state.resumeToken,
+        clientId: readClientId()
+      })
+    );
+  } catch {
+    // This tab still works when browser storage is unavailable.
+  }
 }
 
 function readSession() {
@@ -1286,7 +1295,10 @@ function emitAck(event, payload, { timeoutMs = 20000 } = {}) {
   return new Promise((resolve) => {
     socket.timeout(timeoutMs).emit(event, payload, (error, response) => {
       if (error) {
-        resolve({ ok: false, error: "The server did not answer in time." });
+        resolve({
+          ok: false,
+          error: error.message || "The server did not answer in time."
+        });
       } else {
         resolve(response || { ok: true });
       }
@@ -1490,6 +1502,7 @@ function setJoinData(response) {
     return false;
   }
   state.playerId = response.playerId;
+  state.resumeToken = response.resumeToken;
   state.gameUrl = response.gameUrl;
   state.qrCode = response.qrCode;
   state.prefillGameId = response.gameId || state.prefillGameId;
@@ -1499,12 +1512,14 @@ function setJoinData(response) {
 }
 
 function clearStaleGameLink(message = "") {
+  socket.forgetSession();
   localStorage.removeItem(sessionKey);
   state.view = "home";
   state.game = null;
   state.gameUrl = "";
   state.qrCode = "";
   state.playerId = "";
+  state.resumeToken = "";
   state.notifications = [];
   state.prefillGameId = "";
   updateGameQuery("");
@@ -1549,10 +1564,11 @@ async function rejoinPreviousGame() {
   const storedGameId = normalizeGameIdInput(stored?.gameId);
   const targetGameId = urlGameId || storedGameId;
   const targetPlayerId = urlGameId && storedGameId !== urlGameId ? "" : stored?.playerId;
+  const resumeToken = targetPlayerId ? stored?.resumeToken : "";
   const clientId = readClientId();
   const username = readLastUsername();
 
-  if (urlGameId && !targetPlayerId) {
+  if (urlGameId && (!targetPlayerId || !resumeToken)) {
     ensureCamera({ rerender: false });
     const response = await emitAck("join_game", {
       gameId: urlGameId,
@@ -1573,11 +1589,16 @@ async function rejoinPreviousGame() {
     return;
   }
 
-  if (!targetGameId || (!targetPlayerId && !username)) return;
+  if (!targetGameId || !targetPlayerId || !resumeToken) {
+    // Legacy public-ID-only sessions cannot authorize a secure reconnect.
+    if (stored) localStorage.removeItem(sessionKey);
+    return;
+  }
 
   const response = await emitAck("rejoin_game", {
     gameId: targetGameId,
     playerId: targetPlayerId,
+    resumeToken,
     clientId,
     username
   });
@@ -1775,6 +1796,7 @@ async function endGame() {
 }
 
 function resetLocalGame(message = "", { preserveSession = false } = {}) {
+  socket.forgetSession();
   stopCamera();
   if (!preserveSession) localStorage.removeItem(sessionKey);
   state.view = "home";
@@ -1782,6 +1804,7 @@ function resetLocalGame(message = "", { preserveSession = false } = {}) {
   state.gameUrl = "";
   state.qrCode = "";
   state.playerId = "";
+  state.resumeToken = "";
   state.notifications = [];
   state.prefillGameId = "";
   if (!preserveSession) updateGameQuery("");
@@ -4101,9 +4124,20 @@ async function openLeaderboard() {
     : `${gameIdMarkup}<p class="empty-state">No players in this group yet.</p>`;
 }
 
-socket.on("connect", () => {
+socket.on("connect", ({ roomConnected = false } = {}) => {
   updateConnection(true);
-  if (!isAvatarReview) rejoinPreviousGame();
+  if (!isAvatarReview && !roomConnected) rejoinPreviousGame();
+});
+
+socket.on("session", (response) => {
+  state.playerId = response.playerId;
+  state.resumeToken = response.resumeToken;
+  state.prefillGameId = response.gameId;
+  saveSession();
+});
+
+socket.on("session_lost", ({ error } = {}) => {
+  clearStaleGameLink(error || "This game session has expired.");
 });
 
 socket.on("disconnect", () => {

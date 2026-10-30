@@ -6,6 +6,7 @@ const staticAssets = [
   "/index.html",
   versionedAsset("/styles.css"),
   versionedAsset("/scripts/app.js"),
+  "/scripts/transport.js",
   versionedAsset("/assets/quest-camera.svg"),
   versionedAsset("/manifest.webmanifest")
 ];
@@ -33,8 +34,12 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        const copy = response.clone();
-        caches.open(cacheName).then((cache) => cache.put(event.request, copy));
+        if (response.ok) {
+          const copy = response.clone();
+          event.waitUntil(
+            caches.open(cacheName).then((cache) => cache.put(event.request, copy))
+          );
+        }
         return response;
       })
       .catch(() => {
