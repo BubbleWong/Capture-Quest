@@ -39,7 +39,8 @@ export class GameRoom extends DurableObject {
           if (game.archivalEpoch === game.epoch) return;
           game.archivalEpoch = game.epoch;
           this.enqueue('saveGameResult', {
-            ...result, resultId: `${result.gameId}:${game.epoch}`, gameCode: result.gameId
+            ...result, endedAt: new Date(game.endedAt).toISOString(),
+            resultId: `${result.gameId}:${game.epoch}`, gameCode: result.gameId
           }, { purpose: 'result', epoch: game.epoch });
         } },
         jobs: { enqueue: (type, payload, meta) => this.enqueue(type, payload, meta) },

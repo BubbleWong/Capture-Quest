@@ -160,6 +160,8 @@ test('actual Workers runtime enforces auth, runs FIFO jobs and archives results'
   await until(() => latest(guest)?.lastResult?.status === 'ended', 'durable deadline ends game');
   const archive = await nextJob('saveGameResult');
   assert.match(archive.payload.resultId, new RegExp(`^${ownerSession.gameId}:`));
+  assert.match(archive.payload.endedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert(Date.now() - Date.parse(archive.payload.endedAt) < 5000);
   assert.equal(archive.payload.players.find((p) => p.id === ownerSession.playerId).score, -1);
   assert.equal(archive.payload.players.find((p) => p.id === guestSession.playerId).score, 1);
   await complete(archive, { saved: true });
