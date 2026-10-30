@@ -114,7 +114,15 @@ test("registration authenticates after upgrade without a secret in the URL", asy
   const context = fixture();
   const states = [];
   const connects = [];
-  context.transport.on("game_state", (value) => states.push(value));
+  let sessionMetadata;
+  context.transport.on("session", (value) => { sessionMetadata = value; });
+  context.transport.on("game_state", (value) => {
+    assert.equal(sessionMetadata.gameUrl, secureSession.gameUrl,
+      "A resumed lobby needs its share URL before its first render.");
+    assert.equal(sessionMetadata.qrCode, secureSession.qrCode,
+      "A resumed lobby needs its QR image before its first render.");
+    states.push(value);
+  });
   context.transport.on("connect", (value) => connects.push(value));
   const result = emit(context.transport, "create_game", { username: "Host" });
   await flush();

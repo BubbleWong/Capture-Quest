@@ -4133,6 +4133,8 @@ socket.on("session", (response) => {
   state.playerId = response.playerId;
   state.resumeToken = response.resumeToken;
   state.prefillGameId = response.gameId;
+  state.gameUrl = response.gameUrl;
+  state.qrCode = response.qrCode;
   saveSession();
 });
 
