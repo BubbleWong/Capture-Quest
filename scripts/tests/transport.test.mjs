@@ -11,7 +11,8 @@ const secureSession = {
   qrCode: "data:image/png;base64,test"
 };
 
-function fixture({ responses = [], autoStart = false } = {}) {
+function fixture({ responses = [], autoStart = false,
+  heartbeatIntervalMs = 0 } = {}) {
   const requests = [];
   const timers = new Map();
   let timerId = 0;
@@ -46,7 +47,7 @@ function fixture({ responses = [], autoStart = false } = {}) {
 
     send(value) {
       if (this.readyState !== 1) throw new Error("Not open");
-      this.sent.push(JSON.parse(value));
+      this.sent.push(value === "ping" ? value : JSON.parse(value));
     }
 
     close() {
@@ -60,6 +61,7 @@ function fixture({ responses = [], autoStart = false } = {}) {
     WebSocket: Socket,
     random: () => 0.5,
     autoStart,
+    heartbeatIntervalMs,
     setTimeout(callback, delay) {
       const id = ++timerId;
       timers.set(id, { callback, delay });
@@ -285,5 +287,30 @@ test("boot reports availability without opening an unauthenticated socket", asyn
   assert.deepEqual(connects, [{ roomConnected: false }]);
   assert.equal(context.requests[0].url, "https://game.example/api/health");
   assert.equal(context.Socket.instances.length, 0);
+  context.transport.close();
+});
+
+test("hibernatable heartbeats keep idle connections healthy without game events", async () => {
+  const context = fixture({ heartbeatIntervalMs: 25000 });
+  const socket = await join(context);
+  context.runTimer(25000);
+  assert.equal(socket.sent.at(-1), "ping");
+  assert([...context.timers.values()].some((timer) => timer.delay === 10000));
+  socket.dispatch("message", { data: "pong" });
+  assert(![...context.timers.values()].some((timer) => timer.delay === 10000));
+  assert([...context.timers.values()].some((timer) => timer.delay === 25000));
+  assert.equal(context.transport.connected, true);
+  context.transport.close();
+  assert.equal(context.timers.size, 0);
+});
+
+test("a missing heartbeat reply closes the dead connection and resumes safely", async () => {
+  const context = fixture({ heartbeatIntervalMs: 25000 });
+  const socket = await join(context);
+  context.runTimer(25000);
+  context.runTimer(10000);
+  assert.equal(context.transport.connected, false);
+  assert.equal(socket.readyState, 3);
+  assert([...context.timers.values()].some((timer) => timer.delay === 500));
   context.transport.close();
 });

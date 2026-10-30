@@ -11,6 +11,8 @@ export function createGameTransport(options = {}) {
   const schedule = options.setTimeout || globalThis.setTimeout;
   const unschedule = options.clearTimeout || globalThis.clearTimeout;
   const random = options.random || Math.random;
+  const heartbeatIntervalMs = options.heartbeatIntervalMs ?? 25000;
+  const heartbeatTimeoutMs = options.heartbeatTimeoutMs ?? 10000;
   const listeners = new Map();
   const pending = new Map();
   const requestPrefix = globalThis.crypto.randomUUID();
@@ -23,6 +25,8 @@ export function createGameTransport(options = {}) {
   let reconnecting = false;
   let registering = false;
   let disposed = false;
+  let heartbeatTimer = null;
+  let pongTimer = null;
 
   function notify(event, payload) {
     for (const listener of [...(listeners.get(event) || [])]) {
@@ -57,9 +61,36 @@ export function createGameTransport(options = {}) {
     retryTimer = null;
   }
 
+  function stopHeartbeat() {
+    if (heartbeatTimer !== null) unschedule(heartbeatTimer);
+    if (pongTimer !== null) unschedule(pongTimer);
+    heartbeatTimer = null;
+    pongTimer = null;
+  }
+
+  function scheduleHeartbeat(socket, active) {
+    if (heartbeatIntervalMs <= 0) return;
+    heartbeatTimer = schedule(() => {
+      heartbeatTimer = null;
+      if (active !== generation || socket !== connection ||
+          !transport.connected) return;
+      try {
+        // The Durable Object answers this without waking from hibernation.
+        socket.send("ping");
+        pongTimer = schedule(() => {
+          pongTimer = null;
+          socket.close(1000, "Connection timed out");
+        }, heartbeatTimeoutMs);
+      } catch {
+        socket.close();
+      }
+    }, heartbeatIntervalMs);
+  }
+
   function detach() {
     generation += 1;
     cancelRetry();
+    stopHeartbeat();
     const previous = connection;
     connection = null;
     if (previous) previous.close(1000, "Session changed");
@@ -164,6 +195,12 @@ export function createGameTransport(options = {}) {
 
       socket.addEventListener("message", ({ data }) => {
         if (active !== generation || typeof data !== "string") return;
+        if (authenticated && data === "pong") {
+          if (pongTimer !== null) unschedule(pongTimer);
+          pongTimer = null;
+          if (heartbeatTimer === null) scheduleHeartbeat(socket, active);
+          return;
+        }
         if (data.length > maxServerMessageLength) {
           socket.close(1009, "Response too large");
           return;
@@ -183,6 +220,7 @@ export function createGameTransport(options = {}) {
           settled = true;
           unschedule(timer);
           retryCount = 0;
+          scheduleHeartbeat(socket, active);
           setOnline(true, { roomConnected: true });
           resolve();
           return;
@@ -207,6 +245,7 @@ export function createGameTransport(options = {}) {
       socket.addEventListener("close", () => {
         if (active !== generation) return;
         connection = null;
+        stopHeartbeat();
         setOnline(false);
         failPending("Connection lost. Please try again.");
         rejectAuthentication("The game connection was interrupted.");
