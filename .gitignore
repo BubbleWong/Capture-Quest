@@ -73,6 +73,11 @@ web_modules/
 # Local app configuration with credentials
 config.js
 
+# Local Cloudflare runtime state and private development bindings
+.wrangler/
+.dev.vars
+.dev.vars.*
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

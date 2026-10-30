@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         node-version:
-          - "20.x"
+          - "24.x"
           - "22.x"
 
     steps:
@@ -34,22 +34,13 @@ jobs:
       - name: Run game logic tests
         run: npm test
 
-      - name: Run live socket smoke test
+      - name: Build public assets and check the Worker bundle
         run: |
-          PORT=3001 CAPTURE_QUEST_MODE=production CAPTURE_QUEST_SKIP_LOCAL_CONFIG=1 npm start > /tmp/capture-quest.log 2>&1 &
-          server_pid=$!
-          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          npm run build
+          npx wrangler deploy --dry-run --config cloudflare/wrangler.jsonc
 
-          for attempt in {1..30}; do
-            if curl -fsS http://127.0.0.1:3001/api/health > /dev/null 2>&1; then
-              break
-            fi
-            if ! kill -0 "$server_pid" 2>/dev/null; then
-              cat /tmp/capture-quest.log
-              exit 1
-            fi
-            sleep 1
-          done
-
-          curl -fsS http://127.0.0.1:3001/api/health
-          TEST_BASE_URL=http://127.0.0.1:3001 npm run smoke
+      - name: Run native WebSocket 50-player game
+        run: npm run test:hybrid
+        env:
+          CAPTURE_QUEST_SKIP_LOCAL_CONFIG: '1'
+          HYBRID_GATE_PORT: '3199'

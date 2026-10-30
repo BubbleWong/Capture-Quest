@@ -30,6 +30,7 @@ export default {
         const worker = await status.json();
         return json({ ok: true, mode: 'production', architecture: 'cloudflare-hybrid',
           database: 'local-worker', assetVersion: env.ASSET_VERSION || 'hybrid',
+          revision: env.DEPLOYMENT_SHA || 'development',
           workerOnline: worker.workerOnline, pendingJobs: worker.pending });
       }
       if (url.pathname.startsWith('/internal/')) {

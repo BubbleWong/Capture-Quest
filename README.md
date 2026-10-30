@@ -4,7 +4,7 @@
 
 Capture Quest is a realtime camera scavenger hunt PWA for homes, classrooms, parties, and small groups. One player creates a game, shares a QR code or Game ID, and up to 50 players race to photograph safe everyday objects before the clock runs out.
 
-The app runs on a Node.js backend with Socket.IO, a modern browser frontend, optional Postgres result storage, OpenRouter-powered object generation, image verification, pronunciation TTS, and optional S3-backed pronunciation audio caching.
+The PWA, public API and realtime room coordination run on Cloudflare Workers and Durable Objects. A private outbound Node.js processor handles OpenRouter tasks, photo validation, pronunciation audio and the existing S3 cache. Completed runs are archived in local PostgreSQL; production never silently falls back to memory.
 
 ## Features
 
@@ -28,110 +28,46 @@ Game IDs use Crockford Base32. Player-entered codes accept lowercase letters, hy
 
 ## Requirements
 
-- Node.js 20 or newer.
-- npm.
-- Optional: Postgres for persisted completed-game results.
-- Optional: OpenRouter API key for live object generation, image verification, and TTS.
-- Optional: S3-compatible storage for cached pronunciation audio.
-- Optional: `cloudflared` for HTTPS phone testing in development.
+- Node.js 22 or newer and npm for development and deployment.
+- The existing Cloudflare Workers Paid account; rooms use SQLite Durable Objects.
+- A private local processor with PostgreSQL, an OpenRouter key and the existing S3 pronunciation bucket.
 
-## Quick Start
+## Development
 
 ```bash
-npm install
-cp config.sample.js config.js
+npm ci
 npm run dev
 ```
 
-Open `http://localhost:3000`.
-
-`config.js` is ignored by git. Keep all local credentials there or in environment variables.
-
-## Configuration
-
-Every setting can be supplied in `config.js`; these environment variables can override local config values:
-
-| Variable | Purpose |
-| --- | --- |
-| `CAPTURE_QUEST_MODE` | `development` or `production`. |
-| `NODE_ENV` | `production` also enables production mode when `CAPTURE_QUEST_MODE` is unset. |
-| `CAPTURE_QUEST_SKIP_LOCAL_CONFIG` | Ignore `config.js`, useful for isolated smoke tests. |
-| `PORT` | HTTP server port. |
-| `PUBLIC_BASE_URL` | Public origin used for generated game URLs and QR codes. |
-| `POSTGRES_NODES` | Comma-separated `host:port` Postgres nodes. |
-| `POSTGRES_USER` | Postgres user. |
-| `POSTGRES_PASSWORD` | Postgres password. |
-| `POSTGRES_DATABASE` | Postgres database name. |
-| `POSTGRES_SSL` | Enable Postgres SSL with `1`, `true`, `yes`, or `on`. |
-| `OPENROUTER_API_KEY` | OpenRouter key. |
-| `OPENROUTER_MODEL` | Object generation model. Default: `openai/gpt-5.4-mini`. |
-| `OPENROUTER_VISION_MODEL` | Photo verification model. Default: `google/gemini-3.5-flash-lite`. |
-| `OPENROUTER_TTS_MODEL` | Pronunciation audio model. Default: `google/gemini-3.1-flash-tts-preview`. |
-| `OPENROUTER_TTS_VOICE` | TTS voice name. |
-| `OPENROUTER_TTS_RESPONSE_FORMAT` | TTS response format. |
-| `OPENROUTER_BASE_URL` | OpenRouter API base URL. |
-| `OPENROUTER_APP_TITLE` | App title sent to OpenRouter. |
-| `OPENROUTER_REFERER` | Referer sent to OpenRouter. |
-| `OPENROUTER_MOCK_WHEN_MISSING_KEY` | Accept local mock AI behavior when no OpenRouter key is configured. |
-| `S3_ENABLED` or `AWS_S3_ENABLED` | Enable S3-backed TTS cache. |
-| `AWS_ENDPOINT_URL` or `S3_ENDPOINT_URL` | S3-compatible endpoint. |
-| `AWS_DEFAULT_REGION` or `AWS_REGION` | S3 region. |
-| `AWS_ACCESS_KEY_ID` | S3 access key. |
-| `AWS_SECRET_ACCESS_KEY` | S3 secret key. |
-| `S3_BUCKET` or `AWS_S3_BUCKET` | TTS cache bucket. |
-| `S3_PUBLIC_BASE_URL` | Public URL prefix for cached TTS files. |
-| `S3_FORCE_PATH_STYLE` | Enable path-style S3 URLs. |
-| `CLOUDFLARE_TUNNEL_ENABLED` | Start a Cloudflare tunnel in development mode. |
-| `CLOUDFLARE_TUNNEL_TOKEN` | Cloudflare tunnel token. |
-| `CLOUDFLARE_TUNNEL_DOMAIN` | Tunnel hostname. |
-| `CLOUDFLARE_TUNNEL_URL` | Local origin passed to the tunnel. |
-| `CLOUDFLARED_COMMAND` | Path or command name for `cloudflared`. |
-| `CAPTURE_QUEST_LOG_GAME_EVENTS` | Enable compact socket event logs for debugging. |
-
-If Postgres is unavailable, completed scores are stored in memory for the current server run. If `OPENROUTER_API_KEY` is missing and mock mode is enabled, local development uses deterministic fallback behavior so the gameplay loop can be tested without paid AI calls.
-
-Pronunciation audio is generated before an object is announced when S3 and TTS are configured. Cache keys include the language code and object phrase, so repeated challenges can reuse existing files and send players only a public audio URL.
-
-## Testing
+The local cloud runtime opens on loopback. Run a separate local processor with its private configuration when testing real integrations. For a complete isolated game with fake AI, audio and persistence, run:
 
 ```bash
-npm run check
-npm test
 npm run ci
-npm run load:50
+npm run test:hybrid
 ```
 
-- `npm run check` validates JavaScript syntax for server, client, service worker, smoke tests, and engine tests.
-- `npm test` runs deterministic game-logic tests with Node's built-in test runner.
-- `npm run ci` runs syntax checks and deterministic engine tests.
-- `npm run smoke` runs an optional live Socket.IO smoke test against `TEST_BASE_URL` or `http://localhost:3000`.
-- `npm run load:50` runs an isolated randomized 50-player Socket.IO load test with fake AI/audio/storage.
+The second command starts its own loopback runtime, creates 50 players, rejects the 51st, checks host authorization and secret resume, and completes a game through real WebSockets and durable job leases. It never calls a production service.
 
-More detail is in [docs/TESTING.md](docs/TESTING.md).
+Production processing uses `npm start` or `npm run worker`. It opens no inbound port. See [the architecture and configuration guide](docs/HYBRID_ARCHITECTURE.md), [deployment and rollback](docs/PUBLISHING.md), and [test boundaries](docs/TESTING.md).
 
-## HTTPS Phone Testing
+## Deployment
 
-Mobile camera access requires a secure context. `localhost` is secure on the same machine, but phones and tablets need HTTPS.
+`npm run deploy` builds versioned public assets and deploys the cloud application. Database/model/S3 credentials stay on the processing host; the only cloud secret is the dedicated task-service token. The ordinary local processor uses an account with result-table privileges, not database administration rights.
 
-For development, install `cloudflared`, enable the Cloudflare tunnel in `config.js`, and set the tunnel domain. The server starts and stops the tunnel only in development mode. Production mode never manages the development tunnel, even if Cloudflare settings exist.
-
-Set `publicBaseUrl` to the HTTPS origin, or leave it blank to use the configured development tunnel domain for generated links and QR codes.
+Use a candidate Worker URL for acceptance before switching the public domain. Changes to assets, camera code or audio still require a real HTTPS browser/device check. The old Node HTTP/Socket.IO server and managed public tunnel launcher are retired; commit `d4cc8cdcecdc287a1cf4ce7ccc686b21b87c2a58` preserves that implementation in Git.
 
 ## Project Structure
 
 ```text
-public/              Frontend assets, scripts, styles, service worker, music.
-server/              Express server, Socket.IO events, game engine, AI, storage.
-scripts/             Smoke tests and automated test suites.
-prompts/             Prompt references and AI prompt notes.
-docs/                Testing and publishing notes.
-config.sample.js     Safe configuration template.
-config.js            Local secrets and deployment settings, ignored by git.
+cloudflare/          Public API, room state, job broker and limits.
+public/              PWA, native WebSocket transport, camera, music and UI.
+server/              Shared game rules and private local task processing.
+scripts/             Asset build, syntax checks and bounded game gates.
+prompts/             AI prompt references.
+deploy/              Restricted local processor service definition.
+docs/                Architecture, testing and deployment instructions.
+config.sample.js     Safe local processor configuration template.
 ```
-
-## Publishing
-
-Before publishing the repo, run `npm run ci`, review `git status`, and confirm `config.js` or other local secrets are not staged. See [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Music Credits
 

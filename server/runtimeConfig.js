@@ -6,16 +6,6 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
 const defaults = {
   mode: "development",
-  port: 3000,
-  publicBaseUrl: "",
-  game: {
-    maxPlayers: 50,
-    normalRounds: 5,
-    objectTimeoutMs: 120000,
-    nextRoundDelayMs: 5000,
-    itemBatchSize: 20,
-    refillThreshold: 5
-  },
   postgres: {
     nodes: "",
     user: "",
@@ -46,15 +36,7 @@ const defaults = {
     accessKeyId: "",
     secretAccessKey: "",
     bucket: "capture-quest-tts",
-    publicBaseUrl: "",
     forcePathStyle: true
-  },
-  cloudflare: {
-    enabled: false,
-    token: "",
-    domain: "",
-    command: "cloudflared",
-    url: ""
   },
   localWorker: {
     baseUrl: "",
@@ -65,9 +47,6 @@ const defaults = {
     pollIntervalMs: 3000,
     requestTimeoutMs: 15000
   },
-  logging: {
-    gameEvents: false
-  }
 };
 
 function isObject(value) {
@@ -111,8 +90,6 @@ function applyEnv(config) {
   const mode = normalizeMode(process.env.CAPTURE_QUEST_MODE || process.env.NODE_ENV || config.mode);
   return mergeDeep(config, {
     mode,
-    port: process.env.PORT ? Number(process.env.PORT) : config.port,
-    publicBaseUrl: process.env.PUBLIC_BASE_URL || config.publicBaseUrl,
     postgres: {
       nodes: process.env.POSTGRES_NODES || config.postgres.nodes,
       user: process.env.POSTGRES_USER || config.postgres.user,
@@ -151,13 +128,6 @@ function applyEnv(config) {
       publicBaseUrl: process.env.S3_PUBLIC_BASE_URL || config.s3.publicBaseUrl,
       forcePathStyle: boolFromEnv(process.env.S3_FORCE_PATH_STYLE, config.s3.forcePathStyle)
     },
-    cloudflare: {
-      enabled: boolFromEnv(process.env.CLOUDFLARE_TUNNEL_ENABLED, config.cloudflare.enabled),
-      token: process.env.CLOUDFLARE_TUNNEL_TOKEN || config.cloudflare.token,
-      domain: process.env.CLOUDFLARE_TUNNEL_DOMAIN || config.cloudflare.domain,
-      command: process.env.CLOUDFLARED_COMMAND || config.cloudflare.command,
-      url: process.env.CLOUDFLARE_TUNNEL_URL || config.cloudflare.url
-    },
     localWorker: {
       baseUrl: process.env.CAPTURE_QUEST_CLOUD_URL || config.localWorker.baseUrl,
       token: process.env.CAPTURE_QUEST_WORKER_TOKEN || config.localWorker.token,
@@ -167,31 +137,11 @@ function applyEnv(config) {
       pollIntervalMs: Number(process.env.CAPTURE_QUEST_POLL_INTERVAL_MS || config.localWorker.pollIntervalMs),
       requestTimeoutMs: Number(process.env.CAPTURE_QUEST_WORKER_TIMEOUT_MS || config.localWorker.requestTimeoutMs)
     },
-    logging: {
-      gameEvents: boolFromEnv(process.env.CAPTURE_QUEST_LOG_GAME_EVENTS, config.logging.gameEvents)
-    }
   });
 }
 
 function finalizeConfig(config) {
-  const mode = normalizeMode(config.mode);
-  const cloudflare = {
-    ...config.cloudflare,
-    enabled: mode === "development" && Boolean(config.cloudflare.enabled)
-  };
-  const finalizedConfig = {
-    ...config,
-    mode,
-    cloudflare
-  };
-
-  if (!finalizedConfig.publicBaseUrl && finalizedConfig.cloudflare.enabled && finalizedConfig.cloudflare.domain) {
-    return {
-      ...finalizedConfig,
-      publicBaseUrl: `https://${finalizedConfig.cloudflare.domain.replace(/^https?:\/\//, "").replace(/\/$/, "")}`
-    };
-  }
-  return finalizedConfig;
+  return { ...config, mode: normalizeMode(config.mode) };
 }
 
 export const config = finalizeConfig(applyEnv(mergeDeep(defaults, await loadLocalConfig())));

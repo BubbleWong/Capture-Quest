@@ -1,15 +1,5 @@
 export default {
   mode: "development",
-  port: 3000,
-  publicBaseUrl: "",
-  game: {
-    maxPlayers: 50,
-    normalRounds: 5,
-    objectTimeoutMs: 120000,
-    nextRoundDelayMs: 5000,
-    itemBatchSize: 20,
-    refillThreshold: 5
-  },
   postgres: {
     nodes: "127.0.0.1:5432",
     user: "capture_quest",
@@ -29,7 +19,7 @@ export default {
     ttsResponseFormat: "pcm",
     baseUrl: "https://openrouter.ai/api/v1",
     appTitle: "Capture Quest",
-    referer: "http://localhost:3000",
+    referer: "https://cq.bubbleh.com",
     mockWhenMissingKey: true
   },
   s3: {
@@ -42,23 +32,13 @@ export default {
     publicBaseUrl: "",
     forcePathStyle: true
   },
-  cloudflare: {
-    enabled: false,
-    token: "fake-cloudflare-tunnel-token",
-    domain: "cq-dev.example.com",
-    command: "cloudflared",
-    url: "http://127.0.0.1:3000"
-  },
   localWorker: {
     baseUrl: "https://cq.bubbleh.com",
     token: "",
     workerId: "rio",
-    spoolDirectory: "/home/leask/.local/state/capture-quest/worker",
+    spoolDirectory: "/var/lib/capture-quest/results",
     concurrency: 2,
     pollIntervalMs: 3000,
     requestTimeoutMs: 15000
   },
-  logging: {
-    gameEvents: false
-  }
 };
