@@ -8,6 +8,7 @@ import { createLocalWorker, ResultSpool } from '../../server/localWorker.js';
 import { createJobHandlers, executeJob, validatePhoto } from '../../server/localWorkerJobs.js';
 import { createDatabase } from '../../server/database.js';
 import { createLlm } from '../../server/llm.js';
+import { createChallengeAudioCache } from '../../server/challengeAudio.js';
 import { readLimitedBody } from '../../server/localWorkerHttp.js';
 
 const token = 'a'.repeat(48);
@@ -250,4 +251,90 @@ test('concurrent task slots share one safe result delivery spool', async (t) => 
   assert.equal(maximumDeliveries, 1);
   assert.equal(delivered.size, 2);
   assert.equal((await spool.pending()).length, 0);
+});
+
+function audioFixture() {
+  const uploaded = [];
+  const cache = createChallengeAudioCache({
+    mode: 'production', publicBaseUrl: 'https://game.example',
+    openRouter: {
+      apiKey: 'test-provider-key',
+      model: 'test-text-model', visionModel: 'test-vision-model',
+      baseUrl: 'https://provider.example/api/v1',
+      referer: 'https://game.example', appTitle: 'Capture Quest',
+      ttsModel: 'google/gemini-3.1-flash-tts-preview',
+      ttsVoice: 'Kore', ttsResponseFormat: 'pcm'
+    },
+    s3: {
+      enabled: true, endpointUrl: 'https://storage.example',
+      publicBaseUrl: 'https://audio.example', bucket: 'existing-audio',
+      accessKeyId: 'test-storage-key', secretAccessKey: 'test-storage-secret'
+    }
+  }, { s3Client: { async send(command) {
+    if (command.constructor.name === 'HeadObjectCommand') {
+      const error = new Error('Object absent');
+      error.$metadata = { httpStatusCode: 404 };
+      throw error;
+    }
+    if (command.constructor.name === 'PutObjectCommand') {
+      uploaded.push(command.input);
+    }
+    return {};
+  } } });
+  return { cache, uploaded };
+}
+
+test('speech omits incompatible Referer while chat retains attribution', async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, headers: options.headers });
+    if (url.endsWith('/audio/speech')) {
+      return new Response(new Uint8Array(32), {
+        headers: { 'Content-Type': 'audio/pcm;rate=24000;channels=1' }
+      });
+    }
+    return response({ choices: [{ message: { content: JSON.stringify({
+      match: true, confidence: 0.9, reason: 'A book is visible.'
+    }) } }] });
+  };
+  const { cache, uploaded } = audioFixture();
+  await cache.prepareAudio({ item: 'book', languageCode: 'en', languageName: 'English' });
+  assert.equal(requests[0].headers['HTTP-Referer'], undefined);
+  assert.equal(requests[0].headers['X-Title'], 'Capture Quest');
+  assert.equal(uploaded.length, 1);
+  const wav = uploaded[0].Body;
+  assert.equal(wav.subarray(0, 4).toString(), 'RIFF');
+  assert.equal(wav.readUInt32LE(24), 24000);
+  assert.equal(wav.readUInt16LE(22), 1);
+  assert.equal(wav.length, 32 + 44);
+  const llm = createLlm({ openRouter: {
+    apiKey: 'test-provider-key', model: 'test-text-model',
+    baseUrl: 'https://provider.example/api/v1',
+    referer: 'https://game.example', appTitle: 'Capture Quest'
+  } }, quiet);
+  await llm.verifyPhoto({ item: 'book', imageDataUrl: 'data:image/jpeg;base64,AAAA' });
+  assert.equal(requests[1].headers['HTTP-Referer'], 'https://game.example');
+  assert.equal(requests[1].headers['X-Title'], 'Capture Quest');
+});
+
+test('unexpected PCM metadata and partial samples never enter the audio cache', async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  for (const [contentType, size] of [
+    ['audio/pcm;rate=48000;channels=1', 32],
+    ['audio/pcm;rate=24000;channels=2', 32],
+    ['audio/pcm', 32],
+    ['application/json', 32],
+    ['audio/pcm;rate=24000;channels=1', 33]
+  ]) {
+    globalThis.fetch = async () => new Response(new Uint8Array(size), {
+      headers: { 'Content-Type': contentType }
+    });
+    const { cache, uploaded } = audioFixture();
+    await assert.rejects(cache.prepareAudio({ item: 'book',
+      languageCode: 'en', languageName: 'English' }), /PCM/);
+    assert.equal(uploaded.length, 0);
+  }
 });

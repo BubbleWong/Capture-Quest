@@ -153,7 +153,7 @@ function isAclUnsupported(error) {
   );
 }
 
-export function createChallengeAudioCache(config) {
+export function createChallengeAudioCache(config, { s3Client: suppliedS3Client } = {}) {
   const openRouter = config.openRouter || {};
   const storage = config.s3 || {};
   const responseFormat = cleanResponseFormat(openRouter.ttsResponseFormat);
@@ -176,7 +176,7 @@ export function createChallengeAudioCache(config) {
     };
   }
 
-  const s3Client = new S3Client({
+  const s3Client = suppliedS3Client || new S3Client({
     maxAttempts: 2,
     requestHandler: { connectionTimeout: 3000, requestTimeout: 8000 },
     region: storage.region || "us-east-1",
@@ -276,7 +276,7 @@ export function createChallengeAudioCache(config) {
       headers: {
         Authorization: `Bearer ${openRouter.apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": openRouter.referer || config.publicBaseUrl || "http://localhost",
+        // The speech route rejects HTTP-Referer; retain X-Title attribution.
         "X-Title": openRouter.appTitle || "Capture Quest"
       },
       body: JSON.stringify(body),
@@ -287,9 +287,23 @@ export function createChallengeAudioCache(config) {
       throw new Error(`OpenRouter TTS request failed: HTTP ${response.status}.`);
     }
 
+    if (responseFormat === "pcm") {
+      const [mime, ...parameters] = String(response.headers.get("content-type") || "")
+        .toLowerCase().split(";").map((part) => part.trim());
+      const attributes = new Map(parameters.map((part) => {
+        const [name, value] = part.split("=");
+        return [name?.trim(), value?.trim().replace(/^"|"$/g, "")];
+      }));
+      if (mime !== "audio/pcm" || attributes.get("rate") !== "24000" ||
+          attributes.get("channels") !== "1") {
+        await response.body?.cancel();
+        throw new Error("OpenRouter TTS returned an unsupported PCM format.");
+      }
+    }
     let buffer = Buffer.from(await readLimitedBody(response, 8 * 1024 * 1024));
     if (buffer.length < 16) throw new Error("OpenRouter TTS returned an empty audio file.");
     if (responseFormat === "pcm") {
+      if (buffer.length % 2 !== 0) throw new Error("OpenRouter TTS returned invalid PCM samples.");
       buffer = wavFromPcm(buffer);
     }
     return {
