@@ -13,6 +13,7 @@ export function createGameTransport(options = {}) {
   const random = options.random || Math.random;
   const listeners = new Map();
   const pending = new Map();
+  const requestPrefix = globalThis.crypto.randomUUID();
   let connection = null;
   let session = null;
   let generation = 0;
@@ -283,7 +284,7 @@ export function createGameTransport(options = {}) {
       callback?.(new Error("The game is reconnecting. Please try again."));
       return;
     }
-    const id = String(++sequence);
+    const id = `${requestPrefix}:${++sequence}`;
     const timer = schedule(() => {
       finish(id, new Error("The server did not answer in time."));
     }, timeoutMs);
