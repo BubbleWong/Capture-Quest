@@ -4,23 +4,65 @@
   "account_id": "cdf425cbbd6c8cd940ed041c3d24a5b7",
   "main": "index.js",
   "compatibility_date": "2026-10-30",
-  "compatibility_flags": ["nodejs_compat"],
-  "workers_dev": true,
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
   "assets": {
     "directory": "../dist/public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*", "/internal/*", "/", "/index.html", "/manifest.webmanifest", "/service-worker.js", "/scripts/transport.js"],
+    "run_worker_first": [
+      "/api/*",
+      "/internal/*",
+      "/",
+      "/index.html",
+      "/manifest.webmanifest",
+      "/service-worker.js",
+      "/scripts/transport.js"
+    ],
     "not_found_handling": "single-page-application"
   },
   "durable_objects": {
     "bindings": [
-      { "name": "ROOMS", "class_name": "GameRoom" },
-      { "name": "BROKER", "class_name": "JobBroker" },
-      { "name": "LIMITS", "class_name": "TrafficLimits" }
+      {
+        "name": "ROOMS",
+        "class_name": "GameRoom"
+      },
+      {
+        "name": "BROKER",
+        "class_name": "JobBroker"
+      },
+      {
+        "name": "LIMITS",
+        "class_name": "TrafficLimits"
+      }
     ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom", "JobBroker", "TrafficLimits"] }],
-  "limits": { "cpu_ms": 100 },
-  "observability": { "enabled": true, "head_sampling_rate": 0.1 },
-  "vars": { "ASSET_VERSION": "hybrid" }
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "GameRoom",
+        "JobBroker",
+        "TrafficLimits"
+      ]
+    }
+  ],
+  "limits": {
+    "cpu_ms": 100
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1
+  },
+  "vars": {
+    "ASSET_VERSION": "hybrid"
+  },
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "cq.bubbleh.com",
+      "custom_domain": true
+    }
+  ]
 }
