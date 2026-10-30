@@ -191,7 +191,15 @@ export function createGameTransport(options = {}) {
           return;
         }
         if (typeof message.event !== "string") return;
-        if (message.event === "left_game") forgetSession();
+        if (message.event === "left_game") {
+          // The engine broadcasts departure before its acknowledgement.
+          for (const [id, request] of pending) {
+            if (request.event === "leave_game") {
+              finish(id, null, { ok: true });
+            }
+          }
+          forgetSession();
+        }
         notify(message.event, message.payload);
       });
 
@@ -279,7 +287,7 @@ export function createGameTransport(options = {}) {
     const timer = schedule(() => {
       finish(id, new Error("The server did not answer in time."));
     }, timeoutMs);
-    pending.set(id, { callback, timer });
+    pending.set(id, { callback, timer, event });
     try {
       connection.send(JSON.stringify({ id, event, payload: payload || {} }));
     } catch {

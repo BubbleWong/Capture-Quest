@@ -211,6 +211,18 @@ test("ack timeout does not retry a mutation", async () => {
   context.transport.close();
 });
 
+test("departure notification can precede the leave acknowledgement", async () => {
+  const context = fixture();
+  const socket = await join(context);
+  const departure = emit(context.transport, "leave_game", { gameId: "ABC123" });
+  socket.message({ event: "left_game", payload: { preserveSession: false } });
+  const result = await departure;
+  assert.equal(result.error, null);
+  assert.equal(result.response.ok, true);
+  assert.equal(context.timers.size, 0);
+  context.transport.close();
+});
+
 test("an expired resume secret clears automatic retries", async () => {
   const context = fixture({ responses: [
     { body: secureSession },
