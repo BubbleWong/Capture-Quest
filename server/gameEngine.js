@@ -381,7 +381,8 @@ function skipVoteSummary(game, round) {
 }
 
 export class GameEngine {
-  constructor({ io, config, llm, database, audioCache = null, logger = console }) {
+  constructor({ io, config, llm, database, audioCache = null, logger = console, useTimers = true }) {
+    this.useTimers = useTimers;
     this.io = io;
     this.config = config;
     this.llm = llm;
@@ -447,7 +448,7 @@ export class GameEngine {
 
     const clientId = cleanClientId(payload.clientId);
     const requestedUsername = cleanUsername(payload.username, "");
-    const existingPlayer = this.findPlayerByIdentity(game, requestedUsername, clientId);
+    const existingPlayer = this.authenticatedPlayer(game, payload);
     if (existingPlayer) {
       this.attachPlayerToSocket(game, existingPlayer, socket);
       return { game, player: existingPlayer };
@@ -476,9 +477,7 @@ export class GameEngine {
     const gameId = normalizeGameCode(payload.gameId);
     if (!gameId) return { error: "Session not found." };
     const game = this.games.get(gameId);
-    const username = cleanUsername(payload.username, "");
-    const clientId = cleanClientId(payload.clientId);
-    const player = game?.players.get(payload.playerId) || this.findPlayerByIdentity(game, username, clientId);
+    const player = this.authenticatedPlayer(game, payload);
     if (!game || !player) return { error: "Session not found." };
 
     this.attachPlayerToSocket(game, player, socket);
@@ -694,7 +693,7 @@ export class GameEngine {
       game.currentRound.startedAt = now - elapsedMs;
       game.currentRound.expiresAt = now + remainingMs;
       this.clearRoundTimer(game);
-      game.roundTimer = setTimeout(() => {
+      game.roundTimer = this.useTimers && setTimeout(() => {
         this.expireRound(game.id, game.currentRound?.id).catch((error) => {
           this.logger.warn(`Round timeout failed: ${error.message}`);
         });
@@ -704,7 +703,7 @@ export class GameEngine {
       this.clearNextRoundTimer(game);
       game.nextRoundStartedAt = now;
       game.nextRoundAt = now + remainingMs;
-      game.nextRoundTimer = setTimeout(() => {
+      game.nextRoundTimer = this.useTimers && setTimeout(() => {
         game.nextRoundTimer = null;
         game.nextRoundAt = null;
         game.nextRoundStartedAt = null;
@@ -724,7 +723,9 @@ export class GameEngine {
     if (!session) return { error: "You are not in this game." };
     const { game, player } = session;
     if (game.ownerPlayerId !== player.id) return { error: "Only the game owner can end the game." };
-    if (game.status === "ended") return { error: "The game has already ended." };
+    if (!["loading", "running", "paused"].includes(game.status)) {
+      return { error: "Only an active game can be ended." };
+    }
 
     await this.endGame(game, {
       forced: true,
@@ -780,10 +781,54 @@ export class GameEngine {
     if (game.status !== "running" || !round || round.status !== "active" || round.id !== challengeId) {
       return { ok: true, ignored: true };
     }
-    if (!payload.imageDataUrl || !String(payload.imageDataUrl).startsWith("data:image/")) {
+    const image = String(payload.imageDataUrl || "");
+    if (image.length > (this.config.game.submissionLimitBytes || 524288)) {
+      return { error: "Photo is too large. Please take a smaller photo." };
+    }
+    if (this.config.game.strictCaptureValidation) {
+      const match = /^data:image\/(jpeg|png);base64,([A-Za-z0-9+/]+={0,2})$/.exec(image);
+      if (!match) return { error: "Photo must be a JPEG or PNG image." };
+      const bytes = Buffer.from(match[2], "base64");
+      if (bytes.length < 24 || bytes.toString("base64") !== match[2]) {
+        return { error: "Photo data is invalid." };
+      }
+      if (match[1] === "jpeg") {
+        if (bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff ||
+            bytes.at(-2) !== 0xff || bytes.at(-1) !== 0xd9) {
+          return { error: "Photo data is invalid." };
+        }
+      } else {
+        const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+        if (bytes.length < 45 || !bytes.subarray(0, 8).equals(signature) ||
+            bytes.toString("ascii", 12, 16) !== "IHDR") {
+          return { error: "Photo data is invalid." };
+        }
+        const width = bytes.readUInt32BE(16);
+        const height = bytes.readUInt32BE(20);
+        if (!width || !height || width > 4096 || height > 4096 || width * height > 16000000) {
+          return { error: "Photo dimensions are too large." };
+        }
+      }
+    }
+    if (game.submissionQueue.length >= (this.config.game.maxPendingSubmissions || 50)) {
+      return { error: "The photo queue is full. Please wait." };
+    }
+    if (game.activeSubmissionPlayerId === player.id || game.submissionQueue.some((entry) => entry.playerId === player.id)) {
+      return { error: "Your previous photo is still being checked." };
+    }
+    if ((game.captureCount || 0) >= (this.config.game.maxCapturesPerGame || 500)) {
+      return { error: "This game has reached its photo limit." };
+    }
+    const minimumInterval = this.config.game.submissionIntervalMs || 0;
+    if (player.lastSubmittedAt && Date.now() - player.lastSubmittedAt < minimumInterval) {
+      return { error: "Please wait before submitting another photo." };
+    }
+    if (!image.startsWith("data:image/")) {
       return { error: "Photo data was not received." };
     }
 
+    player.lastSubmittedAt = Date.now();
+    game.captureCount = (game.captureCount || 0) + 1;
     game.submissionQueue.push({
       challengeId,
       playerId: player.id,
@@ -865,6 +910,7 @@ export class GameEngine {
       id: game.id,
       status: game.status,
       ownerPlayerId: game.ownerPlayerId,
+      archivalStatus: game.archivalStatus || null,
       players,
       teamUpEnabled: game.teamUpEnabled,
       teams: game.teams,
@@ -912,6 +958,7 @@ export class GameEngine {
   createPlayer(socket, username, isOwner, clientId = "") {
     return {
       id: crypto.randomUUID(),
+      resumeToken: crypto.randomBytes(32).toString("base64url"),
       clientId: cleanClientId(clientId),
       socketId: socket.id,
       username: cleanUsername(username, randomFunnyAnimalUsername()),
@@ -924,6 +971,14 @@ export class GameEngine {
       connected: true,
       joinedAt: Date.now()
     };
+  }
+
+  authenticatedPlayer(game, payload = {}) {
+    const player = game?.players.get(payload.playerId);
+    const token = String(payload.resumeToken || "");
+    if (!player?.resumeToken || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+    return crypto.timingSafeEqual(Buffer.from(token), Buffer.from(player.resumeToken))
+      ? player : null;
   }
 
   findPlayerByIdentity(game, username, clientId) {
@@ -945,7 +1000,7 @@ export class GameEngine {
         preserveSession: true
       });
       previousSocket?.leave?.(game.id);
-      setTimeout(() => previousSocket?.disconnect?.(true), 50).unref();
+      previousSocket?.disconnect?.(true);
       this.socketSessions.delete(player.socketId);
     }
     player.socketId = socket.id;
@@ -1218,7 +1273,7 @@ export class GameEngine {
     });
     this.emitState(game);
 
-    game.roundTimer = setTimeout(() => {
+    game.roundTimer = this.useTimers && setTimeout(() => {
       this.expireRound(game.id, game.currentRound?.id).catch((error) => {
         this.logger.warn(`Round timeout failed: ${error.message}`);
       });
@@ -1250,6 +1305,7 @@ export class GameEngine {
         if (!player || !player.connected) continue;
 
         let result;
+        game.activeSubmissionPlayerId = player.id;
         try {
           result = await this.llm.verifyPhoto({
             item: round.item,
@@ -1264,6 +1320,8 @@ export class GameEngine {
             message: "This photo could not be verified. Try again."
           });
           continue;
+        } finally {
+          game.activeSubmissionPlayerId = null;
         }
         if (game.submissionQueueEpoch !== queueEpoch) return;
 
@@ -1402,7 +1460,7 @@ export class GameEngine {
     game.nextRoundStartedAt = Date.now();
     game.nextRoundAt = game.nextRoundStartedAt + this.config.game.nextRoundDelayMs;
     this.emitState(game);
-    game.nextRoundTimer = setTimeout(() => {
+    game.nextRoundTimer = this.useTimers && setTimeout(() => {
       game.nextRoundTimer = null;
       game.nextRoundAt = null;
       game.nextRoundStartedAt = null;

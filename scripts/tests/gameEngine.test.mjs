@@ -258,27 +258,12 @@ test("vision verifier prompt accepts drawings and photos of the target object", 
   let requestBody;
   globalThis.fetch = async (_url, options = {}) => {
     requestBody = JSON.parse(options.body);
-    return {
-      ok: true,
-      async json() {
-        return {
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  match: true,
-                  confidence: 0.93,
-                  reason: "The drawing clearly depicts the target."
-                })
-              }
-            }
-          ]
-        };
-      },
-      async text() {
-        return "";
-      }
-    };
+    return new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({
+        match: true, confidence: 0.93,
+        reason: "The drawing clearly depicts the target."
+      }) } }]
+    }), { headers: { "Content-Type": "application/json" } });
   };
 
   try {
@@ -359,7 +344,7 @@ test("uses an available funny animal player name when join-game username is blan
   assert.notEqual(joinedA.player.username, joinedB.player.username);
 });
 
-test("blank-name joins reattach the same local client before start", async () => {
+test("blank-name joins reattach only with the secret resume credential", async () => {
   const { engine, io } = createEngine();
   const owner = io.createSocket("owner");
   const playerA = io.createSocket("player-a");
@@ -375,7 +360,9 @@ test("blank-name joins reattach the same local client before start", async () =>
   });
   const rejoined = engine.joinGame(playerAReconnect, {
     gameId: game.id,
-    clientId: clientIds.playerA
+    clientId: clientIds.playerA,
+    playerId: joined.player.id,
+    resumeToken: joined.player.resumeToken
   });
 
   assert.equal(rejoined.error, undefined);
@@ -574,7 +561,9 @@ test("creates, joins, rejoins, gates readiness, and starts localized rounds", as
   const rejoined = engine.joinGame(secondPlayerSocket, {
     gameId: game.id,
     username: "Scout",
-    clientId: clientIds.playerA
+    clientId: clientIds.playerA,
+    playerId: joined.player.id,
+    resumeToken: joined.player.resumeToken
   });
   assert.equal(rejoined.error, undefined);
   assert.equal(rejoined.player.id, joined.player.id);
@@ -735,7 +724,9 @@ test("does not lower skip threshold when a player is reconnecting", async () => 
   const rejoin = engine.rejoinGame(rejoinedPlayer, {
     gameId: game.id,
     username: "Player",
-    clientId: clientIds.playerA
+    clientId: clientIds.playerA,
+    playerId: game.players.get(engine.socketSessions.get(player.id)?.playerId)?.id || [...game.players.values()].find((p) => !p.isOwner).id,
+    resumeToken: [...game.players.values()].find((p) => !p.isOwner).resumeToken
   });
   assert.equal(rejoin.error, undefined);
   const secondSkip = engine.voteSkipRound(rejoinedPlayer, { gameId: game.id, challengeId: firstRoundId });
@@ -1046,4 +1037,39 @@ test("supports owner pause/resume/end and restart with the same group", async ()
   const playerLeave = engine.leaveGame(player, { gameId: game.id });
   assert.equal(playerLeave.left, true);
   assert.equal(game.players.has(joined.player.id), false);
+});
+
+
+test("public player IDs and client IDs cannot impersonate the owner", () => {
+  const { engine, io } = createEngine();
+  const owner = io.createSocket("owner");
+  const guest = io.createSocket("guest");
+  const impostor = io.createSocket("impostor");
+  const { game, player } = engine.createGame(owner, { username: "Host", clientId: clientIds.owner });
+  const joined = engine.joinGame(guest, { gameId: game.id, username: "Guest" });
+  const snapshot = engine.getSnapshot(game, joined.player.id);
+  assert.equal(JSON.stringify(snapshot).includes(player.resumeToken), false);
+  assert.match(engine.rejoinGame(impostor, {
+    gameId: game.id, playerId: snapshot.ownerPlayerId, clientId: clientIds.owner
+  }).error, /Session not found/);
+  assert.match(engine.rejoinGame(impostor, {
+    gameId: game.id, playerId: snapshot.ownerPlayerId, resumeToken: "x".repeat(43)
+  }).error, /Session not found/);
+  assert.match(engine.rejoinGame(impostor, {
+    gameId: game.id, playerId: snapshot.ownerPlayerId, resumeToken: "é".repeat(43)
+  }).error, /Session not found/);
+  assert.equal(owner.connected, true);
+});
+
+test("production capture validation rejects unsupported, oversized, and repeated photos", async () => {
+  const { engine, io } = createEngine({ config: gameConfig({ strictCaptureValidation: true, submissionLimitBytes: 128 }) });
+  engine.config.game.strictCaptureValidation = true;
+  engine.config.game.submissionLimitBytes = 128;
+  const owner = io.createSocket("owner");
+  const { game } = engine.createGame(owner, { username: "Host" });
+  await startReadyGame(engine, owner, game, []);
+  const payload = { gameId: game.id, challengeId: game.currentRound.id };
+  assert.match(engine.submitCapture(owner, { ...payload, imageDataUrl: "data:image/svg+xml;base64,AAAA" }).error, /JPEG/);
+  assert.match(engine.submitCapture(owner, { ...payload, imageDataUrl: "data:image/jpeg;base64,AAAA" }).error, /invalid/);
+  assert.match(engine.submitCapture(owner, { ...payload, imageDataUrl: `data:image/jpeg;base64,${"A".repeat(200)}` }).error, /too large/);
 });
