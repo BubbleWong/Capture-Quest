@@ -15,7 +15,9 @@ export default {
     user: "capture_quest",
     password: "replace-me",
     database: "capture_quest",
-    ssl: false
+    ssl: false,
+    sslCa: "",
+    migrateOnStart: false
   },
   openRouter: {
     apiKey: "",
@@ -45,6 +47,15 @@ export default {
     domain: "cq-dev.example.com",
     command: "cloudflared",
     url: "http://127.0.0.1:3000"
+  },
+  localWorker: {
+    baseUrl: "https://cq.bubbleh.com",
+    token: "",
+    workerId: "rio",
+    spoolDirectory: "/home/leask/.local/state/capture-quest/worker",
+    concurrency: 2,
+    pollIntervalMs: 3000,
+    requestTimeoutMs: 15000
   },
   logging: {
     gameEvents: false

@@ -21,7 +21,9 @@ const defaults = {
     user: "",
     password: "",
     database: "",
-    ssl: false
+    ssl: false,
+    sslCa: "",
+    migrateOnStart: false
   },
   openRouter: {
     apiKey: "",
@@ -33,7 +35,8 @@ const defaults = {
     baseUrl: "https://openrouter.ai/api/v1",
     appTitle: "Capture Quest",
     referer: "",
-    mockWhenMissingKey: true
+    mockWhenMissingKey: true,
+    requestTimeoutMs: 45000
   },
   s3: {
     enabled: false,
@@ -51,6 +54,15 @@ const defaults = {
     domain: "",
     command: "cloudflared",
     url: ""
+  },
+  localWorker: {
+    baseUrl: "",
+    token: "",
+    workerId: "",
+    spoolDirectory: "",
+    concurrency: 2,
+    pollIntervalMs: 3000,
+    requestTimeoutMs: 15000
   },
   logging: {
     gameEvents: false
@@ -105,7 +117,11 @@ function applyEnv(config) {
       user: process.env.POSTGRES_USER || config.postgres.user,
       password: process.env.POSTGRES_PASSWORD || config.postgres.password,
       database: process.env.POSTGRES_DATABASE || config.postgres.database,
-      ssl: boolFromEnv(process.env.POSTGRES_SSL, config.postgres.ssl)
+      ssl: boolFromEnv(process.env.POSTGRES_SSL, config.postgres.ssl),
+      sslCa: process.env.POSTGRES_SSL_CA || config.postgres.sslCa,
+      migrateOnStart: boolFromEnv(
+        process.env.POSTGRES_MIGRATE_ON_START, config.postgres.migrateOnStart
+      )
     },
     openRouter: {
       apiKey: process.env.OPENROUTER_API_KEY || config.openRouter.apiKey,
@@ -117,6 +133,7 @@ function applyEnv(config) {
       baseUrl: process.env.OPENROUTER_BASE_URL || config.openRouter.baseUrl,
       appTitle: process.env.OPENROUTER_APP_TITLE || config.openRouter.appTitle,
       referer: process.env.OPENROUTER_REFERER || config.openRouter.referer,
+      requestTimeoutMs: Number(process.env.OPENROUTER_TIMEOUT_MS || config.openRouter.requestTimeoutMs),
       mockWhenMissingKey: boolFromEnv(
         process.env.OPENROUTER_MOCK_WHEN_MISSING_KEY,
         config.openRouter.mockWhenMissingKey
@@ -138,6 +155,15 @@ function applyEnv(config) {
       domain: process.env.CLOUDFLARE_TUNNEL_DOMAIN || config.cloudflare.domain,
       command: process.env.CLOUDFLARED_COMMAND || config.cloudflare.command,
       url: process.env.CLOUDFLARE_TUNNEL_URL || config.cloudflare.url
+    },
+    localWorker: {
+      baseUrl: process.env.CAPTURE_QUEST_CLOUD_URL || config.localWorker.baseUrl,
+      token: process.env.CAPTURE_QUEST_WORKER_TOKEN || config.localWorker.token,
+      workerId: process.env.CAPTURE_QUEST_WORKER_ID || config.localWorker.workerId,
+      spoolDirectory: process.env.CAPTURE_QUEST_SPOOL_DIRECTORY || config.localWorker.spoolDirectory,
+      concurrency: Number(process.env.CAPTURE_QUEST_WORKER_CONCURRENCY || config.localWorker.concurrency),
+      pollIntervalMs: Number(process.env.CAPTURE_QUEST_POLL_INTERVAL_MS || config.localWorker.pollIntervalMs),
+      requestTimeoutMs: Number(process.env.CAPTURE_QUEST_WORKER_TIMEOUT_MS || config.localWorker.requestTimeoutMs)
     },
     logging: {
       gameEvents: boolFromEnv(process.env.CAPTURE_QUEST_LOG_GAME_EVENTS, config.logging.gameEvents)

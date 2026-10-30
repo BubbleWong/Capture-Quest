@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { readLimitedBody, requestTimeout } from "./localWorkerHttp.js";
 import {
   CreateBucketCommand,
   HeadBucketCommand,
@@ -176,6 +177,8 @@ export function createChallengeAudioCache(config) {
   }
 
   const s3Client = new S3Client({
+    maxAttempts: 2,
+    requestHandler: { connectionTimeout: 3000, requestTimeout: 8000 },
     region: storage.region || "us-east-1",
     endpoint: storage.endpointUrl,
     forcePathStyle: storage.forcePathStyle !== false,
@@ -184,17 +187,23 @@ export function createChallengeAudioCache(config) {
       secretAccessKey: storage.secretAccessKey
     }
   });
+  const sendS3 = (command) => s3Client.send(command, {
+    abortSignal: AbortSignal.timeout(10000)
+  });
   let ensureBucketPromise = null;
 
   async function ensureBucket() {
     if (ensureBucketPromise) return ensureBucketPromise;
     ensureBucketPromise = (async () => {
       try {
-        await s3Client.send(new HeadBucketCommand({ Bucket: storage.bucket }));
+        await sendS3(new HeadBucketCommand({ Bucket: storage.bucket }));
         return;
       } catch (error) {
         if (isForbidden(error)) return;
         if (!isNotFound(error)) throw error;
+      }
+      if (config.mode === "production" || storage.createBucket !== true) {
+        throw new Error("The configured audio bucket does not exist.");
       }
 
       const createInput = { Bucket: storage.bucket };
@@ -203,17 +212,22 @@ export function createChallengeAudioCache(config) {
       }
 
       try {
-        await s3Client.send(new CreateBucketCommand(createInput));
+        await sendS3(new CreateBucketCommand(createInput));
       } catch (error) {
         if (!isBucketAlreadyOwned(error)) throw error;
       }
-    })();
+    })().catch((error) => {
+      ensureBucketPromise = null;
+      throw error;
+    });
     return ensureBucketPromise;
   }
 
   async function publicObjectExists(url) {
     try {
-      const response = await fetch(url, { method: "HEAD" });
+      const response = await fetch(url, {
+        method: "HEAD", signal: AbortSignal.timeout(5000)
+      });
       if (response.ok) return true;
       if (response.status === 403 || response.status === 404) return false;
     } catch {
@@ -225,7 +239,7 @@ export function createChallengeAudioCache(config) {
   async function objectExists(key, url) {
     await ensureBucket();
     try {
-      await s3Client.send(new HeadObjectCommand({ Bucket: storage.bucket, Key: key }));
+      await sendS3(new HeadObjectCommand({ Bucket: storage.bucket, Key: key }));
       return true;
     } catch (error) {
       if (isNotFound(error)) return false;
@@ -246,11 +260,11 @@ export function createChallengeAudioCache(config) {
     };
 
     try {
-      await s3Client.send(new PutObjectCommand(input));
+      await sendS3(new PutObjectCommand(input));
     } catch (error) {
       if (!isAclUnsupported(error)) throw error;
       const { ACL: _acl, ...inputWithoutAcl } = input;
-      await s3Client.send(new PutObjectCommand(inputWithoutAcl));
+      await sendS3(new PutObjectCommand(inputWithoutAcl));
     }
   }
 
@@ -265,14 +279,15 @@ export function createChallengeAudioCache(config) {
         "HTTP-Referer": openRouter.referer || config.publicBaseUrl || "http://localhost",
         "X-Title": openRouter.appTitle || "Capture Quest"
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(requestTimeout(openRouter.requestTimeoutMs))
     });
     if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`OpenRouter TTS request failed: ${response.status} ${text.slice(0, 240)}`);
+      await response.body?.cancel();
+      throw new Error(`OpenRouter TTS request failed: HTTP ${response.status}.`);
     }
 
-    let buffer = Buffer.from(await response.arrayBuffer());
+    let buffer = Buffer.from(await readLimitedBody(response, 8 * 1024 * 1024));
     if (buffer.length < 16) throw new Error("OpenRouter TTS returned an empty audio file.");
     if (responseFormat === "pcm") {
       buffer = wavFromPcm(buffer);

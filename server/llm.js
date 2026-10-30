@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { readLimitedJson, requestTimeout } from "./localWorkerHttp.js";
 import path from "node:path";
 import { projectRoot } from "./runtimeConfig.js";
 
@@ -494,15 +495,16 @@ export function createLlm(config, logger = console) {
         "HTTP-Referer": openRouter.referer || config.publicBaseUrl || "http://localhost",
         "X-Title": openRouter.appTitle || "Capture Quest"
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(requestTimeout(openRouter.requestTimeoutMs))
     });
 
     if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`OpenRouter request failed: ${response.status} ${text.slice(0, 240)}`);
+      await response.body?.cancel();
+      throw new Error(`OpenRouter request failed: HTTP ${response.status}.`);
     }
 
-    const data = await response.json();
+    const data = await readLimitedJson(response);
     return data.choices?.[0]?.message?.content || "";
   }
 
@@ -585,7 +587,7 @@ export function createLlm(config, logger = console) {
     },
 
     async verifyPhoto({ item, language = "English", imageDataUrl }) {
-      if (!hasKey && openRouter.mockWhenMissingKey) {
+      if (!hasKey && openRouter.mockWhenMissingKey && config.mode !== "production") {
         return {
           match: true,
           confidence: 0.5,
@@ -593,13 +595,7 @@ export function createLlm(config, logger = console) {
         };
       }
 
-      if (!hasKey) {
-        return {
-          match: false,
-          confidence: 0,
-          reason: "OpenRouter key is not configured."
-        };
-      }
+      if (!hasKey) throw new Error("Photo verification is not configured.");
 
       try {
         const [systemPrompt, identityPrompt] = await Promise.all([
@@ -636,18 +632,19 @@ export function createLlm(config, logger = console) {
           }
         );
         const parsed = tryParseJson(content);
+        const confidence = Number(parsed?.confidence);
+        if (typeof parsed?.match !== "boolean" ||
+            !Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+          throw new Error("Photo verification returned an invalid response.");
+        }
         return {
-          match: Boolean(parsed?.match),
-          confidence: Number(parsed?.confidence ?? 0),
-          reason: String(parsed?.reason || "")
+          match: parsed.match,
+          confidence,
+          reason: String(parsed?.reason || "").slice(0, 400)
         };
       } catch (error) {
-        logger.warn(`Photo verification failed (${error.message}).`);
-        return {
-          match: false,
-          confidence: 0,
-          reason: "The photo could not be checked. Try again."
-        };
+        logger.warn("Photo verification provider failed.");
+        throw new Error("The photo could not be checked. Try again.", { cause: error });
       }
     }
   };
