@@ -105,6 +105,7 @@ async function join(context) {
   const socket = context.Socket.instances.at(-1);
   socket.open();
   socket.message({ event: "authenticated", payload: { ok: true } });
+  socket.message({ event: "game_state", payload: { id: "ABC123" } });
   assert.equal((await result).response.ok, true);
   return socket;
 }
@@ -133,9 +134,14 @@ test("registration authenticates after upgrade without a secret in the URL", asy
   socket.message({ event: "game_state", payload: { private: true } });
   assert.equal(states.length, 0);
   socket.message({ event: "authenticated", payload: { ok: true } });
-  assert.equal((await result).response.ok, true);
+  let completed = false;
+  result.then(() => { completed = true; });
+  await flush();
+  assert.equal(completed, false,
+    "Authentication alone must not render a lobby before its snapshot.");
   assert.deepEqual(connects, [{ roomConnected: true }]);
   socket.message({ event: "game_state", payload: { id: "ABC123" } });
+  assert.equal((await result).response.ok, true);
   assert.deepEqual(states, [{ id: "ABC123" }]);
   context.transport.close();
 });
@@ -178,6 +184,7 @@ test("a disconnected mutation fails without replay during secret-authenticated r
   const replacement = context.Socket.instances[1];
   replacement.open();
   replacement.message({ event: "authenticated", payload: { ok: true } });
+  replacement.message({ event: "game_state", payload: { id: "ABC123" } });
   await flush();
   assert.deepEqual(replacement.sent.map((message) => message.event),
     ["authenticate"]);
@@ -257,6 +264,7 @@ test("transient HTTP failures retry resume and do not discard the session", asyn
   const replacement = context.Socket.instances[1];
   replacement.open();
   replacement.message({ event: "authenticated", payload: { ok: true } });
+  replacement.message({ event: "game_state", payload: { id: "ABC123" } });
   await flush();
   assert.equal(context.transport.connected, true);
   assert.equal(context.requests.length, 3);
@@ -273,6 +281,7 @@ test("parallel create requests cannot create duplicate rooms", async () => {
   const socket = context.Socket.instances[0];
   socket.open();
   socket.message({ event: "authenticated", payload: { ok: true } });
+  socket.message({ event: "game_state", payload: { id: "ABC123" } });
   assert.equal((await first).response.ok, true);
   context.transport.close();
 });

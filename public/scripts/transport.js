@@ -217,12 +217,9 @@ export function createGameTransport(options = {}) {
             return;
           }
           authenticated = true;
-          settled = true;
-          unschedule(timer);
           retryCount = 0;
           scheduleHeartbeat(socket, active);
           setOnline(true, { roomConnected: true });
-          resolve();
           return;
         }
         if (message.id !== undefined && "ack" in message) {
@@ -240,6 +237,13 @@ export function createGameTransport(options = {}) {
           forgetSession();
         }
         notify(message.event, message.payload);
+        if (!settled && message.event === "game_state") {
+          // UI registration succeeds only after its first authoritative state.
+          // Resolving at authentication could render a lobby with no game yet.
+          settled = true;
+          unschedule(timer);
+          resolve();
+        }
       });
 
       socket.addEventListener("close", () => {
