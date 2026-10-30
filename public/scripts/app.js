@@ -18,7 +18,7 @@ const socket = createGameTransport();
 const query = new URLSearchParams(window.location.search);
 const initialGameId = query.get("game")?.toUpperCase() || "";
 const isAvatarReview = query.get("avatars") === "1";
-const assetVersion = window.__CAPTURE_QUEST_ASSET_VERSION__ || "dev";
+const assetVersion = new URL(import.meta.url).searchParams.get("v") || "dev";
 const sessionKey = "captureQuestSession";
 const usernameKey = "captureQuestLastUsername";
 const clientIdKey = "captureQuestClientId";
